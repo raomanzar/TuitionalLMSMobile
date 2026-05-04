@@ -1,0 +1,261 @@
+# Companion asset for the `lms-mobile-api-integration` skill.
+# Hard rules for wiring APIs in the Tuitional LMS Mobile app.
+# The agent MUST follow these rules. No exceptions.
+# Last updated: 2026-04-30
+
+# ─────────────────────────────────────────────
+# ARCHITECTURE — four-layer contract
+# ─────────────────────────────────────────────
+
+[architecture]
+layers = ["http_instance", "url_builders", "service_functions", "hooks"]
+mappers_optional = true                 # API → UI shape converters between layers 3 and 4
+
+# Hard rule: components / screens import only from the hook layer (preferred)
+# or the module barrel (rare). NEVER from src/services/axios/* directly.
+
+# ─────────────────────────────────────────────
+# LAYER 1 — HTTP plumbing
+# ─────────────────────────────────────────────
+
+[layer1]
+location_instance = "src/services/axios/config.ts"
+location_helpers  = "src/services/axios/helpers.ts"
+instance_export   = "api"                # axios.create({ baseURL, timeout, headers })
+helpers_export    = ["AxiosGet", "AxiosPost", "AxiosPut", "AxiosPatch", "AxiosDelete"]
+
+[layer1.signature]
+# Helpers take only (url, data?). NO config object.
+# Token + content-type come from the request interceptor.
+shape = "<T>(url: string, data?: unknown): Promise<T>"
+delete_body = "AxiosDelete passes body via { data }"
+
+[layer1.token]
+storage     = "module-level variable in src/services/axios/config.ts"
+setter      = "setAuthToken(jwt | null)"
+prefix      = "raw token (no 'Bearer ' — matches web contract)"
+persistence = "deferred — will move to expo-secure-store with auth flow"
+
+[layer1.base_url]
+source   = "process.env.EXPO_PUBLIC_API_BASE_URL"
+fallback = "https://dev.tuitionaledu.com"
+# Only the EXPO_PUBLIC_ prefix is exposed to the JS runtime.
+
+# ─────────────────────────────────────────────
+# LAYER 2 — URL builders
+# ─────────────────────────────────────────────
+
+[layer2]
+location = "src/services/apis/<module>/endpoint.ts"
+file_per = "module"
+naming   = "{verb}{Resource}Api"          # getAllUsersApi, addUserApi, deleteUserApi
+
+[layer2.rules]
+path_only        = true                   # NEVER concat BASE_URL — instance prepends
+typed_options    = true                   # parameter type from src/types/<module>.types.ts
+no_any           = true
+no_axios_import  = true
+no_react_import  = true
+truthy_guard     = "wrap every params.append with a presence check"
+empty_string_guard = "use !== undefined && !== '' for tri-state booleans"
+
+# ─────────────────────────────────────────────
+# LAYER 3 — Service functions
+# ─────────────────────────────────────────────
+
+[layer3]
+location = "src/services/apis/<module>/helpers.ts"
+naming   = "{verb}{Resource}"              # getAllUsers, addUser, deleteUser
+
+[layer3.signature]
+no_config_arg = true                       # token via interceptor, not arg
+parameter_order = ["data_first", "no_config"]
+generic_response = "real type from src/types/<module>.types.ts"
+generic_no_any = true
+
+[layer3.verbs]
+read       = ["getX", "getAllX"]
+create     = ["addX", "createX"]
+update_full = ["updateX", "editX"]
+update_partial = ["patchX"]
+delete     = ["deleteX", "removeX"]
+narrow_state = ["changeXStatus", "toggleX"]
+
+[layer3.rules]
+no_error_handling = true                   # let AxiosError propagate
+no_logging        = true
+no_imports_from   = ["src/components", "src/app", "src/hooks", "redux"]
+
+# ─────────────────────────────────────────────
+# LAYER 3.5 — Mappers
+# ─────────────────────────────────────────────
+
+[layer35]
+location = "src/services/apis/<module>/mappers.ts"
+purpose  = "API → UI shape conversion (User_Object_Type → User from @/constants/users)"
+
+[layer35.rules]
+pure       = true
+deterministic = true                       # no Date.now() / Math.random()
+no_hooks   = true
+applied_in = "queryFn (Layer 4), not in screens"
+
+[layer35.exports]
+single_record = "to{Resource}"             # toUiUser
+list          = "to{Resource}s"            # toUiUsers
+helpers       = ["pickAvatarColor", "normalizeRole", "formatShortDate"]
+
+# ─────────────────────────────────────────────
+# LAYER 4 — Hooks (TanStack Query)
+# ─────────────────────────────────────────────
+
+[layer4]
+location_queries = "src/hooks/modules/<module>/<module>Queries.ts"
+location_barrel  = "src/hooks/modules/<module>/index.ts"
+file_per_module  = true                    # all useQuery + useMutation in one file
+
+[layer4.query_keys]
+factory_required = true
+factory_export   = "<module>QueryKeys"
+factory_shape    = """
+{
+  all: ['<module>'] as const,
+  list: (params) => [...all, 'list', params] as const,
+  detail: (id) => [...all, 'detail', id] as const,
+}
+"""
+hierarchical = true                         # always start with module name
+no_inline_keys = true                       # never write ['users', ...] inline
+
+[layer4.queries]
+mappers_in_queryFn = true                   # transform API → UI inside queryFn
+include_all_inputs_in_queryKey = true
+no_fetch_in_useEffect = true
+
+[layer4.mutations]
+always_invalidate = "<module>QueryKeys.all"
+never_refetch     = true                    # invalidation is hierarchical and cheaper
+no_toast_in_hook  = true                    # screens decide user-facing wording
+no_modal_close_in_hook = true
+
+[layer4.search]
+debounce_ms = 400                           # mobile default (web is 1500)
+debounce_in_querykey = true                 # never put raw search in queryKey
+
+# ─────────────────────────────────────────────
+# TYPES
+# ─────────────────────────────────────────────
+
+[types]
+location = "src/types/<module>.types.ts"
+naming_convention = "PascalCase_With_Underscores"
+
+[types.naming]
+get_params      = "{Resource}_Api_Payload_Type"        # GetAllUsers_Api_Payload_Type
+response        = "{Resource}_Api_Response_Type"       # GetAllUsers_Api_Response_Type
+mutation_payload = "{Action}_{Resource}_Payload_Type"  # AddUser_Api_Payload_Type
+mutation_response = "{Action}_{Resource}_Api_Response_Type"
+single_object   = "{Resource}_Object_Type"             # User_Object_Type
+
+[types.rules]
+no_any            = true                   # use 'unknown' + narrowing instead
+optional_syntax   = "?:"                   # never explicit '| undefined'
+pagination_envelope = "{ items: T[]; totalPages: number; currentPage: number; totalCount: number }"
+
+# ─────────────────────────────────────────────
+# MODULE BARREL
+# ─────────────────────────────────────────────
+
+[barrel]
+file = "src/services/apis/<module>/index.ts"
+contents = ["export * from './helpers'", "export * from './mappers'"]
+hides = ["endpoint.ts (internal)"]
+
+# ─────────────────────────────────────────────
+# ERROR HANDLING
+# ─────────────────────────────────────────────
+
+[error_handling]
+current = "passthrough — AxiosError propagates raw"
+future  = "ApiError class normalized in response interceptor (deferred)"
+
+[error_handling.rules]
+hook_error_handling   = "no — surface mutation.error to screen"
+screen_error_handling = "Alert / Toast / inline message"
+log_in_helpers        = "no"
+log_in_url_builders   = "no"
+
+# ─────────────────────────────────────────────
+# REDUX vs TANSTACK QUERY
+# ─────────────────────────────────────────────
+
+[state_split]
+# Mirrors web's separation:
+server_data       = "TanStack Query"      # paged lists, filters, mutations
+auth_state        = "deferred (will be Redux + expo-secure-store)"
+reference_data    = "TanStack Query w/ long staleTime (no Redux slice for caches yet)"
+transient_ui      = "useState"            # modals, filters, form state
+# Don't introduce Redux until shared cross-screen state has 2+ real consumers.
+
+# ─────────────────────────────────────────────
+# IMPORT BOUNDARIES
+# ─────────────────────────────────────────────
+
+[imports.allowed_from_screen_or_component]
+hooks    = "@/hooks/modules/<module>"
+constants = "@/constants/<module>"
+ui_components = "@/components/global, @/components/ui/<module>"
+
+[imports.forbidden_from_screen_or_component]
+http_instance = "@/services/axios/*"      # NEVER directly
+service_internals = "@/services/apis/<module>/{endpoint,helpers,mappers}"
+                                           # use the module barrel @/services/apis/<module>
+
+[imports.allowed_from_hook]
+service_barrel = "@/services/apis/<module>"
+constants      = "@/constants/<module>"
+types          = "@/types/<module>.types"
+
+[imports.forbidden_from_service]
+react   = "no React hooks in services"
+redux   = "no Redux access in services"
+ui      = "no @/components or @/app imports"
+
+# ─────────────────────────────────────────────
+# MODULE SETUP CHECKLIST
+# ─────────────────────────────────────────────
+
+[checklist]
+# When adding a new module 'foo':
+files = [
+  "src/types/foo.types.ts",
+  "src/services/apis/foo/endpoint.ts",
+  "src/services/apis/foo/helpers.ts",
+  "src/services/apis/foo/mappers.ts",
+  "src/services/apis/foo/index.ts",
+  "src/constants/foo.ts",
+  "src/hooks/modules/foo/fooQueries.ts",
+  "src/hooks/modules/foo/index.ts",
+]
+
+# ─────────────────────────────────────────────
+# VALIDATION
+# ─────────────────────────────────────────────
+
+[validate]
+typescript = "npx tsc --noEmit"
+lint       = "npm run lint"
+no_axios_in_components = "grep -rn '@/services/axios' src/components src/app"
+no_inline_query_keys   = "grep -rn 'queryKey:\\s*\\[' src/components src/app"
+no_any_in_helpers      = "grep -rn 'any' src/services/apis/*/helpers.ts"
+
+# ─────────────────────────────────────────────
+# PERMISSION BOUNDARY
+# ─────────────────────────────────────────────
+
+[permission]
+require_explicit_approval_to_modify_axios_instance     = true   # src/services/axios/config.ts
+require_explicit_approval_to_change_query_key_factory  = true
+require_explicit_approval_to_introduce_redux           = true
+never_push_to_main = true
+run_validation_after_change = true

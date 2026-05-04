@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(mkdir -p \"/tmp/design-extract\")",
+      "Bash(cp \"C:/Users/Dell/.claude/projects/d--Tuitional-Projects-TuitionalLMSMobile/af45e1ca-da15-440f-b58f-ebff2ac2f839/tool-results/webfetch-1777369983406-1967oq.bin\" \"/tmp/design-extract/design.tar.gz\")",
+      "Read(//tmp/**)",
+      "Bash(tar -xzf design.tar.gz)",
+      "Bash(cp \"/tmp/design-extract/tuitional-lms-mobile-app/project/users-screen.jsx\" \"d:/Tuitional Projects/TuitionalLMSMobile/.tmp_users-screen.jsx\")",
+      "Bash(cp \"/tmp/design-extract/tuitional-lms-mobile-app/project/ios-frame.jsx\" \"d:/Tuitional Projects/TuitionalLMSMobile/.tmp_ios-frame.jsx\")",
+      "Bash(npx tsc *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp\\design-extract\\tuitional-lms-mobile-app\\project\\design-system\\fonts"
+    ]
+  }
+}

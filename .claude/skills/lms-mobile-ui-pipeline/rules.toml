@@ -1,0 +1,226 @@
+# Companion asset for the `lms-mobile-ui-pipeline` skill.
+# Mobile (React Native + Expo Router) coding standards.
+# The agent MUST follow these rules. No exceptions.
+# Last updated: 2026-04-30
+
+# ─────────────────────────────────────────────
+# PATTERNS TO FOLLOW
+# ─────────────────────────────────────────────
+
+[follow.styling]
+method = "StyleSheet.create"
+# Every component is a single .tsx file with StyleSheet.create() at the bottom.
+# No CSS, no SCSS, no styled-components, no NativeWind, no Tailwind.
+tokens = "src/constants/theme/* (colors, typography, radius, spacing, shadows, gradients)"
+# Never hardcode hex/rgba/font sizes/letter spacing — use Colors / FontSize / etc.
+fluid_type = "FontSize tokens (JS port of CSS clamp())"
+# FontSize.regular18 resolves at module load; phones land near min, tablets near max.
+
+[follow.routing]
+library = "expo-router"
+header_shown = false
+# Never enable Stack/Tabs native header — every screen renders its own <TopBar/>.
+typed_routes = true                       # enabled in app.json experiments.typedRoutes
+navigation_api = "router from expo-router"
+# router.push, router.replace, router.back, useLocalSearchParams.
+# Never use raw useNavigation from @react-navigation/native.
+
+[follow.navigation_structure]
+# Two-layer pattern:
+#   src/app/(protected)/_layout.tsx  → Tabs (bottom tab bar visible)
+#   src/app/<module>/_layout.tsx     → Stack (sibling of (protected); pushes hide tabs)
+list_screens_in = "(protected)/<module>.tsx"
+form_screens_in = "<module>/{add,edit,[id],...}.tsx"
+# List screens show the bottom tab bar; form/detail screens push above it.
+
+[follow.components]
+folder_global = "src/components/global/"     # cross-page reusables
+folder_module = "src/components/ui/<module>/" # module-scoped UI
+file_naming = "PascalCase.tsx"
+barrel_per_folder = true                     # one index.ts per folder
+no_top_level_components_barrel = true         # no @/components/index.ts
+# Mirrors the codebase: import from '@/components/global' or '@/components/ui/users'.
+
+[follow.hooks]
+folder_global = "src/hooks/global/"
+folder_module = "src/hooks/modules/<module>/"
+naming = "camelCase with use prefix"
+queries_file = "<module>Queries.ts"          # all useQuery + useMutation in one file per module
+# Mirrors the codebase: import from '@/hooks/modules/users'.
+
+[follow.lists]
+component = "Animated.FlatList"
+# Required props for any list rendering > 30 items:
+required_props = [
+  "removeClippedSubviews",
+  "initialNumToRender",                       # default 10
+  "maxToRenderPerBatch",                      # default 8
+  "windowSize",                               # default 9
+]
+key_extractor = "module-level const, not inline"
+render_item = "useCallback with stable deps"
+empty_footer = "useMemo, not inline JSX"
+pull_to_refresh = "refreshing={isFetching && !isLoading}, onRefresh={refetch}"
+
+[follow.memoization]
+list_items = "React.memo() — wrap every component rendered by FlatList"
+handlers = "useCallback for every handler passed to a memoized child"
+prop_objects = "useMemo for every object/array passed to a memoized child"
+# Without this, parent re-renders cascade through every visible card.
+
+[follow.sheets]
+implementation = "Modal + animationType='slide' + scrim Pressable"
+# Don't add @gorhom/bottom-sheet unless gestures or snap points are needed.
+grabber = "38×4 pill, Colors.grabber, Radius.pill, top center"
+sheet_radius = "Radius.sheet (top corners only)"
+dismiss_pattern = "Outer Pressable closes; inner Pressable swallows tap"
+
+[follow.swipe_actions]
+gesture_lib = "react-native-gesture-handler v2"
+animation_lib = "react-native-reanimated v4"
+required_offsets = "activeOffsetX([-10, 10]) + failOffsetY([-12, 12])"
+# Without these, vertical scroll triggers swipes.
+js_state_setter = "wrap with runOnJS(...)"
+# Gesture handlers run on UI thread; setState calls must runOnJS.
+
+[follow.theming]
+import_path = "@/constants/theme"
+# Always destructure from the barrel; never deep-import (@/constants/theme/colors).
+dark_mode = "deferred"
+# Light-mode UX must lock first. When dark mode arrives, Colors becomes hook-based.
+
+[follow.fonts]
+loader = "expo-font in src/providers/AppProviders.tsx"
+asset_map = "FontAssets in src/constants/theme/typography.ts"
+# Family-name strings are single-sourced — change a font in two places (FontFamily + FontAssets).
+
+[follow.safe_area]
+hook = "useSafeAreaInsets from react-native-safe-area-context"
+# Always read insets for paddingTop and paddingBottom on full-screen routes.
+# Never hardcode notch heights (47, 59, etc.) — devices vary.
+
+[follow.icons]
+library = "@expo/vector-icons"
+common_packs = ["Feather", "Ionicons"]
+# Don't add react-native-svg-icons / lucide-react-native; vector-icons covers the design.
+
+[follow.state]
+server_state = "TanStack Query (useQuery, useMutation)"
+client_state = "useState"
+global_state = "deferred — add Redux only when shared cross-screen state is real"
+# Mirrors web's separation: server data = React Query, transient UI = useState.
+
+[follow.tap_targets]
+min_size = 44                              # iOS HIG minimum
+icon_button = "36×36 with hitSlop={8}"
+fab = "56×56"
+chip_height = "≥36 (paddingHorizontal 14, paddingVertical 7)"
+
+[follow.accessibility]
+status_pairs_color_with_text = true        # never color-only (e.g. green dot alone)
+accessibility_label_required_on_icon_buttons = true
+# <Pressable accessibilityRole="button" accessibilityLabel="...">
+
+[follow.lifecycle_screens]
+delete_confirm = "centered icon + body + user card + Cancel/Delete buttons"
+deactivate = "user pill + warning callout + radio + reason chips + textarea"
+export = "delivery card + scope radio + columns chips + success state with file card"
+# Match patterns established in src/components/ui/users/{Delete,Deactivate,Export}Screen.tsx
+
+# ─────────────────────────────────────────────
+# PATTERNS TO AVOID
+# ─────────────────────────────────────────────
+
+[avoid]
+no_css_modules = "RN does not run a CSS engine — use StyleSheet.create"
+no_styled_components = "Not RN-native; banned"
+no_tailwind = "Not RN-native; banned"
+no_nativewind = "Not introduced; if added later requires team-wide migration"
+no_inline_styles_for_tokens = "style={{...}} is for runtime values only — never for token-expressible values"
+no_hardcoded_colors = "Every color must come from Colors.*"
+no_hardcoded_font_sizes = "Every fontSize must come from FontSize.*"
+no_hardcoded_letter_spacing = "Every letterSpacing must come from LetterSpacing.*"
+no_native_header = "headerShown: false everywhere; render custom <TopBar/>"
+no_table_layouts = "Tables don't fit on mobile — use card lists"
+no_useNavigation = "Use router from expo-router for typed routes"
+no_useEffect_for_data_fetching = "Server data belongs in TanStack Query"
+no_relative_imports = "Use @/* alias — never ../../../"
+no_console_in_components = "Use the request/response interceptor for logging"
+no_any = "Type properly; use 'unknown' + narrowing for variable shapes"
+no_top_level_barrel = "@/components/index.ts and @/hooks/index.ts must not exist"
+# Per-folder barrels only (matches existing structure).
+
+# ─────────────────────────────────────────────
+# CO-LOCATED PRIMITIVES (don't recreate)
+# ─────────────────────────────────────────────
+
+[primitives.global]
+TopBar         = "src/components/global/TopBar.tsx"
+Field          = "src/components/global/Field.tsx"            # also exports SectionTitle
+TextField      = "src/components/global/TextField.tsx"
+SelectLook     = "src/components/global/SelectLook.tsx"
+PrimaryButton  = "src/components/global/PrimaryButton.tsx"
+Avatar         = "src/components/global/Avatar.tsx"
+Badge          = "src/components/global/Badge.tsx"            # 9 kinds: student/teacher/admin/parent/synced/unsynced/active/inactive/pending
+ScreenBg       = "src/components/global/ScreenBg.tsx"
+AppTabBar      = "src/components/global/AppTabBar.tsx"        # consumes BottomTabBarProps
+Placeholder    = "src/components/global/Placeholder.tsx"
+
+[primitives.users]
+UserCard          = "src/components/ui/users/UserCard.tsx"          # memoized, swipe-actions
+UserDetailScreen  = "src/components/ui/users/UserDetailScreen.tsx"  # full-page detail with tabs
+UserDetailSheet   = "src/components/ui/users/UserDetailSheet.tsx"   # legacy bottom sheet (kept for ref)
+UserFabSheet      = "src/components/ui/users/UserFabSheet.tsx"      # navigates to add/add-relation/export
+UserFilterSheet   = "src/components/ui/users/UserFilterSheet.tsx"   # bottom-sheet filter
+AddUserScreen     = "src/components/ui/users/AddUserScreen.tsx"
+EditUserScreen    = "src/components/ui/users/EditUserScreen.tsx"
+AddRelationScreen = "src/components/ui/users/AddRelationScreen.tsx"
+DeactivateScreen  = "src/components/ui/users/DeactivateScreen.tsx"
+DeleteScreen      = "src/components/ui/users/DeleteScreen.tsx"
+ExportScreen      = "src/components/ui/users/ExportScreen.tsx"
+
+# ─────────────────────────────────────────────
+# NAMING CONVENTIONS
+# ─────────────────────────────────────────────
+
+[naming.files]
+components_global    = "PascalCase.tsx (Avatar.tsx, TopBar.tsx)"
+components_module    = "PascalCase.tsx (UserCard.tsx, AddUserScreen.tsx)"
+routes               = "kebab-case.tsx (Expo Router contract: add-relation.tsx, [id].tsx)"
+hooks                = "camelCase.ts (useFilteredUsers.ts, usersQueries.ts)"
+constants            = "kebab-case.ts (users.ts, theme/colors.ts)"
+types                = "kebab-case with .types.ts suffix"
+folders              = "kebab-case (add-relation, enrollments-logs)"
+
+[naming.code]
+props_interface  = "Props (local) or {ComponentName}Props (when exported)"
+event_handlers   = "handle{Action}: handleSubmit, handleClose, handleCardTap"
+style_keys       = "camelCase inside StyleSheet.create"
+modal_state      = "{name}Open: filterOpen, fabOpen"
+filter_state     = "single useMemo'd object passed to hook"
+
+# ─────────────────────────────────────────────
+# VALIDATION
+# ─────────────────────────────────────────────
+
+[validate]
+typescript                 = "npx tsc --noEmit"
+lint                       = "npm run lint"
+# Token audits (must return zero matches outside theme files):
+no_hardcoded_hex           = "grep -rn '#[0-9a-fA-F]\\{3,8\\}' src/components src/app"
+no_rgba                    = "grep -rn 'rgba(' src/components src/app"
+no_bare_font_size          = "grep -rn 'fontSize:\\s*[0-9]' src/components src/app"
+# Structural check — no top-level barrels:
+no_top_level_components_barrel = "test ! -f src/components/index.ts"
+no_top_level_hooks_barrel      = "test ! -f src/hooks/index.ts"
+
+# ─────────────────────────────────────────────
+# PERMISSION BOUNDARY
+# ─────────────────────────────────────────────
+
+[permission]
+require_explicit_approval_to_modify_existing_components = true
+require_explicit_approval_to_modify_constants_theme    = true   # shared with web; mirror changes
+require_explicit_approval_to_change_routing_layout     = true   # _layout.tsx files
+never_push_to_main = true
+run_validation_after_change = true
