@@ -1,0 +1,162 @@
+# Companion asset for the `lms-mobile-security` skill.
+# Hard rules for auth, transport, deep linking, env, and secret handling.
+# Last updated: 2026-05-04
+
+[scope]
+covers = [
+  "auth token lifecycle (in-memory now, expo-secure-store target)",
+  "axios request/response interceptor security",
+  "401 refresh-flow pattern (single-flight, _retried flag)",
+  "(protected)/_layout.tsx route guard",
+  "deep-link allow-list + param validation",
+  "certificate pinning (production)",
+  "EXPO_PUBLIC_* exposure rule + EAS secrets",
+  "Info.plist / Android manifest permission strings",
+  "log redaction (Authorization, Cookie, password, email)",
+]
+
+defers_to = [
+  { topic = "axios instance shape and helpers", skill = "lms-mobile-api-integration" },
+  { topic = "AuthProvider mount in provider stack", skill = "lms-mobile-platform" },
+]
+
+# ─────────────────────────────────────────────
+# AUTH TOKEN
+# ─────────────────────────────────────────────
+
+[token.contract]
+header_name   = "Authorization"
+prefix        = ""                        # raw token, NO 'Bearer '
+reason        = "matches web client; backend expects raw"
+modify_without_backend_confirmation = false
+
+[token.storage.current]
+location = "module-level variable in src/services/axios/config.ts"
+setter   = "setAuthToken(jwt | null)"
+getter   = "getAuthToken()"
+persistence = "none — cleared on app cold start"
+
+[token.storage.target]
+package = "expo-secure-store"
+keychain_accessible = "WHEN_UNLOCKED_THIS_DEVICE_ONLY"
+icloud_sync = false
+key_namespace = "tuitional.auth.*"
+warm_at = "AppProviders boot, before QueryClientProvider"
+interceptor_remains_sync = true             # cache token in module memory after first read
+
+[token.refresh_flow]
+trigger_status = 401
+single_flight = true                        # share one in-flight refresh
+retry_marker = "_retried flag on AxiosRequestConfig"
+on_refresh_failure = "setAuthToken(null) + redirect to /login"
+
+# ─────────────────────────────────────────────
+# ROUTE GUARD
+# ─────────────────────────────────────────────
+
+[route_guard]
+location = "src/app/(protected)/_layout.tsx"
+states = ["loading", "authenticated", "unauthenticated"]
+loading_renders = "splash shell — never the protected route"
+unauthenticated_redirect = "/login"
+role_check = "second guard inside screen, reads useAuth().role"
+
+# ─────────────────────────────────────────────
+# DEEP LINKS
+# ─────────────────────────────────────────────
+
+[deep_links]
+package = "expo-linking"
+scheme  = "tuitional"
+universal_link_host = "app.tuitionaledu.com"
+
+[deep_links.validation]
+allowed_schemes = ["tuitional", "https"]
+allowed_hosts   = ["app.tuitionaledu.com"]
+param_validation_required = true            # regex / type check before router.push
+forbidden_actions = [
+  "raw router.push(url) — never",
+  "open expo-web-browser to deep-link URL without validation",
+  "auto-execute mutation from deep link",
+  "redirect= param without internal-path check",
+]
+
+# ─────────────────────────────────────────────
+# CERTIFICATE PINNING
+# ─────────────────────────────────────────────
+
+[pinning]
+status = "deferred — production-only when handling money/PII"
+package_options = ["react-native-ssl-pinning", "native config plugin"]
+hashes_pinned = 2                            # current + backup, for rotation
+applies_to_profile = "production"
+debug_profiles_use_system_trust = true       # allows Charles / mitmproxy
+
+# ─────────────────────────────────────────────
+# ENV VARS
+# ─────────────────────────────────────────────
+
+[env.exposure]
+public_prefix = "EXPO_PUBLIC_*"              # SHIPPED to device — public only
+known_safe = ["EXPO_PUBLIC_API_BASE_URL"]
+forbidden_in_public_prefix = [
+  "API secrets",
+  "JWT signing keys",
+  "third-party private keys",
+  "service-account JSON",
+]
+
+[env.secrets]
+storage = "EAS secrets (eas secret:create)"
+forbidden_storage = [".env (any tracked file)", "app.json", "EXPO_PUBLIC_*"]
+
+[env.runtime_read]
+allowed_in = ["src/services/axios/config.ts"]
+prefer_elsewhere = "expo-constants for build-time config"
+
+# ─────────────────────────────────────────────
+# PERMISSIONS (NATIVE)
+# ─────────────────────────────────────────────
+
+[permissions.ios]
+location = "app.json -> expo.ios.infoPlist"
+strings_must_be = "plain English, specific purpose"
+forbidden_strings = ["needed", "for the app", "for app use", "required"]
+
+[permissions.android]
+location = "app.json -> expo.android.permissions"
+rule = "list ONLY what the app actually uses"
+flagged_for_review = ["ACCESS_BACKGROUND_LOCATION", "READ_SMS", "READ_CONTACTS"]
+
+# ─────────────────────────────────────────────
+# LOGGING
+# ─────────────────────────────────────────────
+
+[logging.redact]
+fields = ["Authorization", "Cookie", "password", "token", "email"]
+applies_to = ["console", "crash reporter breadcrumbs", "axios request/response logs"]
+strip_before_logging_request = true
+
+# ─────────────────────────────────────────────
+# PRE-PUSH SECRET-HYGIENE GREP (CI gate)
+# ─────────────────────────────────────────────
+
+[pre_push.greps]
+tracked_env       = "git ls-files | grep -E '\\.env(\\.|$)' | grep -v example"
+jwt_in_source     = "grep -rn -E 'eyJ[A-Za-z0-9_-]{20,}\\.eyJ[A-Za-z0-9_-]+\\.' src/"
+api_keys_in_source = "grep -rn -E '(api[_-]?key|secret|token|bearer)\\s*[:=]\\s*[\"\\x27][A-Za-z0-9_-]{16,}' src/"
+aws_keys          = "grep -rn -E 'AKIA[0-9A-Z]{16}|aws_secret_access_key' src/"
+all_must_return = "zero matches"
+gate = "fail-closed before EAS submit"
+
+# ─────────────────────────────────────────────
+# PERMISSION BOUNDARIES
+# ─────────────────────────────────────────────
+
+[permission]
+require_explicit_approval_to_modify_axios_interceptor = true
+require_explicit_approval_to_change_token_contract    = true
+require_explicit_approval_to_add_native_security_dependency = true
+require_explicit_approval_to_change_deep_link_allow_list    = true
+never_log_token = true
+never_push_to_main = true

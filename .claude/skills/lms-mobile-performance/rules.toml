@@ -1,0 +1,170 @@
+# Companion asset for the `lms-mobile-performance` skill.
+# Hard rules for measuring, profiling, and tuning the Tuitional LMS Mobile app.
+# Last updated: 2026-05-04
+
+[scope]
+covers = [
+  "Hermes sampling profiler workflow",
+  "react-native-performance markers",
+  "why-did-you-render dev guard",
+  "FlatList tuning matrix",
+  "Reanimated 4 worklet correctness",
+  "TanStack Query perceived-perf (keepPreviousData, select, prefetch)",
+  "expo-image cache discipline on long lists",
+  "JS bundle size budget (source-map-explorer)",
+  "flashlight CI gate (FPS / heap)",
+  "per-screen perf budgets (BUDGETS.md)",
+]
+
+defers_to = [
+  { topic = "surface UI perf checks during a UI audit", skill = "lms-mobile-ui-testing (§12)" },
+  { topic = "FlatList styling / structure", skill = "lms-mobile-ui-pipeline (§5)" },
+  { topic = "TanStack Query correctness rules", skill = "lms-mobile-api-integration" },
+]
+
+# ─────────────────────────────────────────────
+# TOOLING
+# ─────────────────────────────────────────────
+
+[tooling]
+required = [
+  "react-native-performance",
+  "@welldone-software/why-did-you-render (dev only)",
+  "@bam.tech/flashlight (CI)",
+  "source-map-explorer (CI)",
+]
+hermes_profiler = "built-in; reachable via dev menu (Cmd+D / Cmd+M)"
+
+[tooling.wdyr]
+mount_in = "src/providers/AppProviders.tsx"
+gated_by = "__DEV__"
+config   = "{ trackAllPureComponents: true }"
+
+# ─────────────────────────────────────────────
+# HOT FILES — concrete audit targets
+# ─────────────────────────────────────────────
+
+[hot_files]
+typography_dimensions_one_shot = "src/constants/theme/typography.ts:54"
+users_flatlist                 = "src/app/(protected)/users/index.tsx:262"
+user_card_memo_boundary        = "src/components/ui/users/UserCard.tsx"
+query_client_defaults          = "src/lib/queryClient.ts"
+
+# ─────────────────────────────────────────────
+# FLATLIST TUNING MATRIX
+# ─────────────────────────────────────────────
+
+[flatlist.tuning]
+"<50_rows"     = { initialNumToRender = 10, maxToRenderPerBatch = 10, windowSize = 21 }
+"50_200"       = { initialNumToRender = 10, maxToRenderPerBatch = 8,  windowSize = 11 }
+"200_700"      = { initialNumToRender = 12, maxToRenderPerBatch = 8,  windowSize = 9  }
+"700_plus"     = { initialNumToRender = 14, maxToRenderPerBatch = 6,  windowSize = 7  }
+
+[flatlist.required]
+key_extractor_module_level   = true
+render_item_useCallback      = true
+get_item_layout_when_constant_height = true
+remove_clipped_subviews_android = true
+maintain_visible_content_position_when_prepending = true
+
+[flatlist.forbidden]
+nested_in_scrollview         = true
+anonymous_render_item        = true
+anonymous_key_extractor      = true
+data_array_in_render_item_deps = true
+
+# ─────────────────────────────────────────────
+# REANIMATED — worklet correctness
+# ─────────────────────────────────────────────
+
+[reanimated.worklet]
+no_console_log               = true
+no_js_scope_reads            = true
+runOnJS_only_at_commit       = true                 # onEnd / onFinalize, NOT onUpdate
+prefer = ["useAnimatedStyle", "useAnimatedScrollHandler"]
+forbidden = ["legacy Animated.event", "scrollY via Animated.event"]
+
+# ─────────────────────────────────────────────
+# TANSTACK QUERY — perceived perf
+# ─────────────────────────────────────────────
+
+[query.perceived_perf]
+paginated_lists_use = "placeholderData: keepPreviousData"
+mappers_via_select  = true                           # second-stage; queryFn still applies primary mapper
+detail_query_gate   = "enabled: !!id"
+prefetch_on_row_tap = true
+optimistic_via_setQueryData = "for visible-row mutations"
+
+[query.staleTime]
+hot_resources       = "60s (current default)"
+reference_data      = "24h"
+example_pinned      = "users list = 60s; roles enum = 24h"
+
+# ─────────────────────────────────────────────
+# IMAGE DISCIPLINE
+# ─────────────────────────────────────────────
+
+[images.long_lists]
+required = "expo-image"
+required_props = ["cachePolicy='memory-disk'", "recyclingKey", "placeholder", "transition"]
+forbidden = "RN <Image> for network sources on lists"
+
+# ─────────────────────────────────────────────
+# BUNDLE BUDGET
+# ─────────────────────────────────────────────
+
+[bundle]
+measurement = "npx expo export && npx source-map-explorer dist/_expo/static/js/*.js"
+soft_budget_per_pr = "+50 KB"
+hard_budget_per_pr = "+200 KB"
+common_offenders = ["lodash whole-package import", "moment", "unused vector-icon glyph sets"]
+
+# ─────────────────────────────────────────────
+# CI GATE — flashlight
+# ─────────────────────────────────────────────
+
+[ci.flashlight]
+target_device = "Pixel 4a (or equivalent mid-tier Android)"
+duration_seconds = 30
+fail_if_avg_fps_below = 55
+fail_if_heap_delta_above_mb = 20
+artifact = "perf-results.html"
+
+# ─────────────────────────────────────────────
+# PER-SCREEN BUDGETS (live in BUDGETS.md)
+# ─────────────────────────────────────────────
+
+[budgets.canonical_target]
+device = "Pixel 4a (Android 13)"
+build  = "production JS bundle, dev-client release mode"
+
+[budgets.users_list]
+tti_ms_max     = 600
+scroll_fps_min = 58
+js_heap_mb_max = 80
+
+[budgets.users_detail]
+tti_ms_max     = 400
+js_heap_mb_max = 60
+
+[budgets.future_enrollments_list]
+tti_ms_max     = 700
+scroll_fps_min = 58
+js_heap_mb_max = 90
+
+# ─────────────────────────────────────────────
+# RULES
+# ─────────────────────────────────────────────
+
+[rules]
+measure_before_optimizing      = true
+one_change_per_measurement     = true
+benchmark_in_production_mode   = true
+canonical_target_is_mid_android = true
+keepPreviousData_on_paginated_lists = true
+
+[permission]
+require_explicit_approval_to_modify_theme_tokens = true     # typography one-shot fix touches src/constants/theme
+require_explicit_approval_to_change_query_client_defaults = true
+require_explicit_approval_to_add_perf_native_dependency = true
+never_push_to_main = true

@@ -1,0 +1,166 @@
+# Companion asset for the `lms-mobile-platform` skill.
+# Hard rules for cross-cutting Expo + RN platform work in the Tuitional LMS Mobile app.
+# Last updated: 2026-05-04
+
+[scope]
+covers = [
+  "new module bootstrap (orchestration only)",
+  "Expo SDK package integration",
+  "platform splits (.ios.tsx / .android.tsx / Platform.select)",
+  "app lifecycle (AppState, deep-link handler, splash)",
+  "EAS build profiles + OTA channels",
+  "Reanimated 4 + Gesture Handler 2 composition",
+  "@/* path alias enforcement",
+  "Metro cache reset protocol",
+]
+
+defers_to = [
+  { topic = "tokens, StyleSheet, component pattern", skill = "lms-mobile-ui-pipeline" },
+  { topic = "endpoints, helpers, mappers, hooks", skill = "lms-mobile-api-integration" },
+  { topic = "layout / FlatList / sheet audits", skill = "lms-mobile-ui-testing" },
+  { topic = "profiling, budgets, FlatList tuning matrices", skill = "lms-mobile-performance" },
+  { topic = "auth, secure-store, deep-link validation, pinning", skill = "lms-mobile-security" },
+]
+
+# ─────────────────────────────────────────────
+# NEW MODULE BOOTSTRAP — fixed order
+# ─────────────────────────────────────────────
+
+[bootstrap]
+canonical_reference = "src/services/apis/users + src/hooks/modules/users + src/app/(protected)/users.tsx"
+order = [
+  "1. src/types/<module>.types.ts",
+  "2. src/services/apis/<module>/endpoint.ts",
+  "3. src/services/apis/<module>/helpers.ts",
+  "4. src/services/apis/<module>/mappers.ts",
+  "5. src/services/apis/<module>/index.ts",
+  "6. src/constants/<module>.ts",
+  "7. src/hooks/modules/<module>/<module>Queries.ts",
+  "8. src/hooks/modules/<module>/index.ts",
+  "9. src/components/ui/<module>/<Component>.tsx",
+  "10. src/app/(protected)/<module>.tsx",
+  "10b. src/app/<module>/_layout.tsx",
+  "10c. src/app/<module>/{add,edit,[id]}.tsx",
+  "11. validate (npx tsc --noEmit && npm run lint)",
+]
+out_of_order_is_forbidden = true
+
+# ─────────────────────────────────────────────
+# EXPO PACKAGE DISCIPLINE
+# ─────────────────────────────────────────────
+
+[expo_packages]
+install_command = "npx expo install <pkg>"            # never `npm install` for Expo packages
+forbidden_install_command = "npm install <expo-pkg>"
+reason = "npx expo install pins the SDK-54-compatible version; npm install ignores compat"
+
+[expo_packages.images]
+prefer_on_long_lists = "expo-image"                   # cache + placeholder + transition
+forbidden_on_long_lists = "RN <Image>"                # no cache by default
+
+[expo_packages.web]
+external_links = "expo-web-browser"
+forbidden = "react-native-webview"                    # not in deps; do not introduce without approval
+
+# ─────────────────────────────────────────────
+# PROVIDER MOUNT POINT
+# ─────────────────────────────────────────────
+
+[providers]
+mount_point = "src/providers/AppProviders.tsx"
+order = [
+  "GestureHandlerRootView",
+  "SafeAreaProvider",
+  "QueryClientProvider",
+  "AuthProvider (deferred — when auth lands)",
+  "SocketProvider (deferred — when chat lands)",
+]
+forbidden_mount_in = "src/app/_layout.tsx"            # root layout = fonts + splash + Stack only
+
+# ─────────────────────────────────────────────
+# REANIMATED + GESTURE HANDLER COMPOSITION
+# ─────────────────────────────────────────────
+
+[reanimated.worklet_rules]
+directive            = "'worklet' required (or use useAnimatedStyle / useAnimatedScrollHandler)"
+no_js_scope_reads    = true
+no_console_log       = true                            # serializes through bridge
+runOnJS_on           = "onEnd / commit, NOT onUpdate / onActive"
+
+[gesture.pan_with_flatlist]
+required_axes_guards = ["activeOffsetX([-10, 10])", "failOffsetY([-12, 12])"]
+reason = "without these, vertical scroll triggers card swipes"
+
+[gesture.composition]
+prefer = ["Gesture.Race", "Gesture.Simultaneous", "Gesture.Exclusive"]
+forbidden = "sibling <GestureDetector> components for related gestures"
+
+# ─────────────────────────────────────────────
+# PLATFORM SPLITS
+# ─────────────────────────────────────────────
+
+[platform_splits]
+prefer_inline = "Platform.select for one-off values"
+prefer_separate_files = ".ios.tsx / .android.tsx when 30%+ of file is platform-specific"
+
+# ─────────────────────────────────────────────
+# PATH ALIAS
+# ─────────────────────────────────────────────
+
+[path_alias]
+alias = "@/*"
+maps_to = "src/*"
+forbidden = "../../../"                                # absolutely no relative deep paths
+
+# ─────────────────────────────────────────────
+# METRO RESET PROTOCOL
+# ─────────────────────────────────────────────
+
+[metro]
+reset_command = "npx expo start -c"
+reset_required_after = [
+  "renaming any route file (Expo Router caches the route map)",
+  "moving a component between global/ and ui/<module>/",
+  "adding or removing a font weight",
+  "editing tsconfig.json paths",
+]
+
+# ─────────────────────────────────────────────
+# EAS PROFILES
+# ─────────────────────────────────────────────
+
+[eas.profiles]
+development = { distribution = "internal (dev-client)", channel = "development" }
+preview     = { distribution = "internal (standalone)", channel = "preview" }
+production  = { distribution = "store / TestFlight",   channel = "production" }
+
+[eas.runtime_version]
+bump_required_on = [
+  "new package with native code",
+  "Expo SDK upgrade",
+  "any change to ios/ or android/ folder",
+  "any change to app.json native config",
+]
+ota_only_targets_matching_runtime_version = true
+
+# ─────────────────────────────────────────────
+# VALIDATION
+# ─────────────────────────────────────────────
+
+[validate]
+typescript = "npx tsc --noEmit"
+lint       = "npm run lint"
+no_axios_in_components = "grep -rn '@/services/axios' src/components src/app"
+no_inline_query_keys   = "grep -rn 'queryKey:\\s*\\[' src/components src/app"
+no_relative_deep_paths = "grep -rn '\\.\\./\\.\\./\\.\\./' src/"
+
+# ─────────────────────────────────────────────
+# PERMISSIONS
+# ─────────────────────────────────────────────
+
+[permission]
+require_explicit_approval_to_add_native_dependency = true
+require_explicit_approval_to_change_eas_profiles   = true
+require_explicit_approval_to_modify_app_json_native = true
+never_push_to_main = true
+run_validation_after_change = true
