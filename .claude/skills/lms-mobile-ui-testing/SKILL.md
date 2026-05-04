@@ -1,5 +1,5 @@
 ---
-name: ui-testing-skill
+name: lms-mobile-ui-testing
 description: >
   Structural and functional UI quality audit for the Tuitional LMS Mobile app
   (Expo SDK 54 + React Native 0.81 + Expo Router 6 + StyleSheet + League Spartan
@@ -9,7 +9,11 @@ description: >
   keyboard avoidance, accessibility basics, or "something looks off". Also
   trigger when the user shares a component / screen file for review.
   **Do not** suggest color, spacing, font-family, radius, or shadow changes —
-  those belong to the design system (see `lms-mobile-ui-pipeline` skill).
+  those belong to the design system (see `lms-mobile-ui-pipeline` skill). For
+  deep performance profiling (Hermes, Reanimated worklets, render budgets, CI
+  flashlight gates) defer to `lms-mobile-performance`. For authentication,
+  token storage, deep-link safety, certificate pinning, or any security review
+  defer to `lms-mobile-security`.
 ---
 
 # UI QA — Mobile Audit Protocol (Tuitional LMS Mobile)
@@ -347,7 +351,9 @@ QA checks only — do not alter colors or font sizes to meet contrast. Flag cont
 
 ---
 
-## 12. Performance Quick Checks
+## 12. Performance — Surface Checks Only
+
+This section is a **surface-level smoke screen** during a UI audit. For real performance work — profiling, Hermes sampling, FlatList tuning, bundle/budget gates, perceived-perf via TanStack Query placeholders, Reanimated worklet correctness — load the **`lms-mobile-performance`** skill.
 
 - [ ] No `console.log` / debug code in screen / component files (service layer exempt)
 - [ ] All exported list-item components are wrapped in `memo()`
@@ -355,12 +361,12 @@ QA checks only — do not alter colors or font sizes to meet contrast. Flag cont
 - [ ] Computed objects passed as props use `useMemo`
 - [ ] **Never** fetch in `useEffect` — server state belongs in TanStack Query (see `lms-mobile-api-integration` skill)
 - [ ] No raw `axios` / `fetch` calls inside components — go through `src/services/apis/<module>/` + TanStack Query hooks
-- [ ] No anonymous arrow function as `renderItem` / `keyExtractor` — both should be hoisted
-- [ ] No expensive computation in render — wrap in `useMemo` if it reads data structures
-- [ ] Reanimated worklets are explicit (`'worklet'` directive) and don't reach into the JS scope without `runOnJS`
-- [ ] Animated styles use `useAnimatedStyle` — **not** legacy `Animated.event` (which doesn't run on the UI thread)
-- [ ] Heavy screens (long forms, dashboards) are not re-mounted on tab switch — verify route group structure
-- [ ] Images use `expo-image` for caching on lists with avatars (700+ rows × 1 avatar each = brutal without cache)
+- [ ] No anonymous arrow function as `renderItem` / `keyExtractor` — both hoisted
+- [ ] Reanimated worklets are explicit (`'worklet'` directive); JS-side state setters are wrapped in `runOnJS`
+- [ ] Animated styles use `useAnimatedStyle` (not legacy `Animated.event`)
+- [ ] Images on long lists use `expo-image` for caching
+
+> Anything beyond this list — measurements, budgets, profiling harnesses, render counts — is `lms-mobile-performance` territory. Do not duplicate that depth here.
 
 ---
 

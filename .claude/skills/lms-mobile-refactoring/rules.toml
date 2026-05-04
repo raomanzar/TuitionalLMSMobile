@@ -1,0 +1,164 @@
+# Companion asset for the `lms-mobile-refactoring` skill.
+# Hard rules for refactoring + cleanup work in the Tuitional LMS Mobile app.
+# Last updated: 2026-05-04
+
+[scope]
+covers = [
+  "forward-scaffolding stub modules to canonical pattern",
+  "layer-skip detection (axios in components, inline query keys, any in helpers)",
+  "type tightening (any → src/types/<module>.types.ts)",
+  "ScrollView → FlatList migration when content is server-driven",
+  "dead-code detection (ts-prune, surface only)",
+  "naming convention enforcement",
+  "import-boundary cleanup",
+  "delete-don't-deprecate hygiene (matches CLAUDE.md)",
+]
+
+defers_to = [
+  { topic = "what shape to scaffold to (file order, naming)", skill = "lms-mobile-api-integration" },
+  { topic = "route layout for the new module", skill = "lms-mobile-platform" },
+  { topic = "FlatList tuning numbers", skill = "lms-mobile-performance" },
+  { topic = "audit posture during UI review", skill = "lms-mobile-ui-testing" },
+  { topic = "design tokens / styling", skill = "lms-mobile-ui-pipeline" },
+]
+
+# ─────────────────────────────────────────────
+# POSTURE
+# ─────────────────────────────────────────────
+
+[posture]
+mode_primary   = "forward-scaffolding (stubs → canonical)"
+mode_secondary = "pattern-drift correction"
+mode_forbidden = "legacy refactor (premature for this codebase)"
+
+[posture.canonical_module]
+name = "users"
+files = [
+  "src/services/apis/users/",
+  "src/hooks/modules/users/",
+  "src/components/ui/users/",
+  "src/app/(protected)/users.tsx",
+  "src/app/users/",
+]
+modify_without_approval = false
+
+[posture.stub_modules]
+list = ["auth", "enrollments", "schedule", "billing", "chat"]
+target_shape = "match `users` exactly"
+
+# ─────────────────────────────────────────────
+# LAYER-SKIP GREP RECIPES (fail-closed)
+# ─────────────────────────────────────────────
+
+[grep]
+# All must return zero matches in CI before merge.
+
+axios_in_components       = "grep -rn '@/services/axios' src/components src/app"
+inline_query_keys         = "grep -rn 'queryKey:\\s*\\[' src/components src/app"
+any_in_helpers            = "grep -rn ': any\\b\\|<any>\\|as any\\b' src/services/apis/*/helpers.ts src/services/apis/*/endpoint.ts"
+base_url_concat           = "grep -rn 'BASE_URL\\|baseURL' src/services/apis/*/endpoint.ts"
+react_in_mappers          = "grep -rn 'from .react.\\|useState\\|useEffect' src/services/apis/*/mappers.ts"
+react_or_redux_in_services = "grep -rn 'from .react.\\|@reduxjs\\|react-redux' src/services/apis/"
+raw_axios_or_fetch_in_screens = "grep -rn -E 'import .* from .axios.|fetch\\s*\\(' src/components src/app"
+relative_deep_paths       = "grep -rn 'from .\\.\\./\\.\\./\\.\\./' src/"
+hex_colors_outside_theme  = "grep -rn -E '#[0-9a-fA-F]{3,8}|rgba?\\(' src/components src/app"
+bare_font_sizes           = "grep -rn -E 'fontSize:\\s*[0-9]' src/components src/app"
+
+bundle_into_script = "scripts/audit-layer-skips.sh"
+
+# ─────────────────────────────────────────────
+# TYPE TIGHTENING
+# ─────────────────────────────────────────────
+
+[types]
+no_any_in = ["src/services/apis/*/endpoint.ts", "src/services/apis/*/helpers.ts"]
+no_unknown_as_workaround = true
+create_missing_types_first = "src/types/<module>.types.ts"
+follow_naming = "{Resource}_Api_Payload_Type / {Resource}_Api_Response_Type / {Resource}_Object_Type"
+
+# ─────────────────────────────────────────────
+# SCROLLVIEW → FLATLIST MIGRATION TRIGGER
+# ─────────────────────────────────────────────
+
+[migration.scrollview_to_flatlist]
+trigger = "ScrollView rendering .map() over server-driven data"
+required_props_after = [
+  "keyExtractor (module-level)",
+  "renderItem (useCallback)",
+  "removeClippedSubviews",
+  "initialNumToRender",
+  "refreshing + onRefresh wired to TanStack Query refetch",
+]
+forbidden = "FlatList nested in ScrollView"
+header_pattern = "ListHeaderComponent for fixed content above the list"
+defer_tuning_numbers_to = "lms-mobile-performance §2.2"
+
+# ─────────────────────────────────────────────
+# DEAD-CODE DETECTION
+# ─────────────────────────────────────────────
+
+[dead_code]
+tools = ["ts-prune", "knip"]
+ci_step = "npx ts-prune --error"
+auto_delete = false                             # surface only; user decides
+flag_files_unchanged_since = "initial scaffold commit"
+
+# ─────────────────────────────────────────────
+# NAMING CONVENTIONS (cross-skill summary)
+# ─────────────────────────────────────────────
+
+[naming]
+component_file = "PascalCase.tsx"
+route_file     = "kebab-case.tsx"
+hook_file      = "camelCase.ts (use prefix)"
+url_builder    = "{verb}{Resource}Api"
+service_fn     = "{verb}{Resource}"
+type_alias     = "{Resource}_Api_Payload_Type / _Response_Type / _Object_Type"
+
+# ─────────────────────────────────────────────
+# DELETE-DON'T-DEPRECATE
+# ─────────────────────────────────────────────
+
+[delete_dont_deprecate]
+forbidden_patterns = [
+  "_unused* prefix on dead identifier",
+  "// removed for X comments",
+  "re-exporting removed types from a barrel",
+  "feature flags for code that is truly gone",
+]
+when_changing_public_shape = "update every consumer in the same change"
+
+# ─────────────────────────────────────────────
+# REFACTOR CHECKLIST PER MODULE
+# ─────────────────────────────────────────────
+
+[checklist]
+order = [
+  "diff file tree against users/",
+  "create missing files in api-integration order",
+  "replace every `any` with proper type",
+  "migrate ScrollView over server data to FlatList",
+  "run §grep recipes (must be empty)",
+  "verify import boundaries",
+  "verify naming conventions",
+  "ts-prune for dead code",
+  "npx tsc --noEmit && npm run lint",
+  "spot-check on device (defer to ui-testing)",
+]
+
+# ─────────────────────────────────────────────
+# RULES
+# ─────────────────────────────────────────────
+
+[rules]
+never_modify_users_module_without_approval = true
+one_module_per_pr = true
+forward_scaffolding_first = true
+grep_recipes_fail_closed = true
+
+[permission]
+require_explicit_approval_to_modify_canonical_users = true
+require_explicit_approval_to_modify_theme_tokens   = true
+require_explicit_approval_to_change_query_key_factory = true
+never_push_to_main = true
+run_validation_after_change = true
