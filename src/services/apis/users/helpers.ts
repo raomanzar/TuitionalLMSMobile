@@ -1,3 +1,4 @@
+import { ConvertObjectToFormData } from "@/services/axios/payload-conversions";
 import {
   AxiosDelete,
   AxiosGet,
@@ -13,7 +14,7 @@ import type {
   GetAllUsers_Api_Payload_Type,
   GetAllUsers_Api_Response_Type,
   GetAllUsersByGroup_ApiResponse_Type,
-  Get_User_By_Id_ApiResponse_Type,
+  GetUserById_Api_Response_Type,
   Gmail_Api_Payload_Type,
   UpdateUser_Api_Payload_Type,
   UpdateUser_ApiResponse_Type,
@@ -40,13 +41,25 @@ export const getAllUsersByGroup = () =>
 export const getAllUsers = (options: GetAllUsers_Api_Payload_Type = {}) =>
   AxiosGet<GetAllUsers_Api_Response_Type>(getAllUsersApi(options));
 
-export const getUserById = (options: { id: string }) =>
-  AxiosGet<Get_User_By_Id_ApiResponse_Type>(getUserByIdApi(options));
+/**
+ * Returns the same `User_Object_Type` shape as `getAllUsers`. Backend wraps
+ * the response in `{ user: ... }` — we unwrap here so the mapper / hooks
+ * downstream don't need to know about the envelope.
+ */
+export const getUserById = (options: { id: string }): Promise<User_Object_Type> =>
+  AxiosGet<GetUserById_Api_Response_Type>(getUserByIdApi(options)).then(
+    (r) => r.user,
+  );
 
 // ─── Writes ────────────────────────────────────────────────────
 
+/**
+ * Sends as multipart/form-data per the swagger spec — `profileImage` ships as
+ * a binary file part, every other field as a string. Axios sets the boundary
+ * header automatically once it sees a `FormData` instance.
+ */
 export const addUser = (payload: AddUser_Api_Payload_Type) =>
-  AxiosPost<User_Object_Type>(addUserApi(), payload);
+  AxiosPost<User_Object_Type>(addUserApi(), ConvertObjectToFormData(payload));
 
 export const addRelation = (payload: AddRelation_Api_Payload_Type) =>
   AxiosPost<AddRelation_Api_Response_Type>(addRelationApi(), payload);

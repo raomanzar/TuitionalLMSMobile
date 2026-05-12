@@ -8,6 +8,19 @@ description: >
   query-key factories, mutation invalidation, error propagation. Trigger when
   the user asks to wire a new endpoint, add a useQuery / useMutation, shape a
   payload or response type, invalidate a query, or audit existing data-fetching code.
+defers_to:
+  - skill: lms-mobile-performance
+    for: perceived-perf overlays (placeholderData, select-as-mapper, prefetch, optimistic via setQueryData)
+  - skill: lms-mobile-security
+    for: token storage (expo-secure-store), 401 refresh flow, secret-hygiene greps
+  - skill: lms-mobile-platform
+    for: AuthProvider mount + new-module bootstrap orchestration
+  - skill: lms-mobile-ui-pipeline
+    for: FlatList prop *contract* on the consumer side
+  - skill: lms-mobile-refactoring
+    for: forward-scaffolding stubs to canonical pattern
+  - skill: lms-mobile-ui-testing
+    for: structural / functional audit of a hook consumer screen
 ---
 
 # Tuitional LMS Mobile — API Integration Specification

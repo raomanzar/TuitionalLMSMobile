@@ -1,16 +1,32 @@
 ---
 name: lms-mobile-security
 description: >
-  Mobile security skill for the Tuitional LMS Mobile app — auth token lifecycle,
-  expo-secure-store migration, route guards on (protected)/, 401 refresh-flow
-  pattern, deep-link allow-list validation, certificate pinning on the axios
-  instance, env-var exposure rules (EXPO_PUBLIC_*), permission usage strings
-  (Info.plist / Android manifest), secret hygiene, log redaction. Trigger when
-  the user asks to wire login/logout, persist tokens, gate routes, validate
-  deep links, harden HTTPS, audit env vars, prepare for app-store review, or
-  do a security review on the auth / network / linking surface. Do NOT modify
-  the axios interceptor or token contract without explicit approval — see the
-  `lms-mobile-api-integration` skill's permission rules.
+  Mobile security skill for the Tuitional LMS Mobile app — auth **token
+  contract** (raw token, no Bearer; canonical owner of the contract — code
+  lives in `lms-mobile-api-integration`), token lifecycle, expo-secure-store
+  migration, route guards on `(protected)/`, 401 refresh-flow pattern,
+  **deep-link allow-list + param validation**, certificate pinning on the
+  axios instance, env-var exposure rules (EXPO_PUBLIC_*), permission usage
+  strings (Info.plist / Android manifest), secret hygiene, log redaction.
+  Trigger when the user asks to wire login / logout, persist tokens, gate
+  routes, validate deep links, harden HTTPS, audit env vars, prepare for
+  app-store review, or do a security review on the auth / network / linking
+  surface. Do NOT modify the axios interceptor or token contract without
+  explicit approval — see the `lms-mobile-api-integration` skill's permission
+  rules.
+defers_to:
+  - skill: lms-mobile-api-integration
+    for: axios interceptor *code*, helpers, query-key factory, four-layer architecture
+  - skill: lms-mobile-platform
+    for: AuthProvider mount in provider stack, deep-link handler wiring, app lifecycle
+  - skill: lms-mobile-ui-pipeline
+    for: login / logout screen styling, route guard render shell (SplashShell)
+  - skill: lms-mobile-performance
+    for: log-redaction perf cost, secure-store warm-up TTI impact
+  - skill: lms-mobile-ui-testing
+    for: structural audit of (protected)/_layout.tsx behavior
+  - skill: lms-mobile-refactoring
+    for: stub auth module forward-scaffolding (when auth ships)
 ---
 
 # Tuitional LMS Mobile — Security Specification
@@ -27,23 +43,14 @@ This skill owns the security boundary. Adjacent skills:
 
 ### 1.1 Current (in-memory, deferred persistence)
 
-[`src/services/axios/config.ts`](../../../src/services/axios/config.ts):
+The axios instance + request interceptor + `setAuthToken` / `getAuthToken` code lives in [`src/services/axios/config.ts`](../../../src/services/axios/config.ts) and is documented end-to-end in **[`lms-mobile-api-integration` §2.1](../lms-mobile-api-integration/SKILL.md)** (single source of truth for the interceptor code).
 
-```ts
-let authToken: string | null = null;
-export const setAuthToken = (token: string | null) => { authToken = token; };
-export const getAuthToken = () => authToken;
-
-api.interceptors.request.use((config) => {
-  if (authToken) config.headers.set('Authorization', authToken);
-  return config;
-});
-```
-
-**Contract — verified, do not break:**
-- **Raw token** is sent as `Authorization` header. **No `Bearer ` prefix.** This matches the web client's contract. Do not "fix" this without backend confirmation.
+**Contract — verified by this skill, do not break:**
+- **Raw token** is sent as the `Authorization` header. **No `Bearer ` prefix.** Matches the web client's contract; do not "fix" without backend confirmation.
 - **No per-call `config`** arg. Token threading is the interceptor's job — see `lms-mobile-api-integration` Layer 3.
 - Token reset: `setAuthToken(null)` on logout.
+
+This skill **owns the contract** (header shape, no-bearer rule, when to clear). It does **not** own the interceptor code itself — that is api-integration's territory. Any change to the interceptor goes through api-integration's permission rules.
 
 ### 1.2 Target (expo-secure-store, persistent)
 

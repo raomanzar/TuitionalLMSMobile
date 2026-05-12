@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -19,7 +19,7 @@ import {
   Shadow,
   Spacing,
 } from '@/constants/theme';
-import type { User } from '@/constants/users';
+import { USER_AVATAR_FALLBACK, type User } from '@/constants/users';
 
 const ACTION_WIDTH = 74;
 const OPEN_OFFSET = -ACTION_WIDTH * 2;
@@ -40,34 +40,41 @@ function UserCardImpl({ user, isOpen, onOpen, onTap, onEdit, onDelete }: Props) 
     tx.value = withSpring(isOpen ? OPEN_OFFSET : 0, { damping: 20, stiffness: 220 });
   }, [isOpen, tx]);
 
-  const pan = Gesture.Pan()
-    .activeOffsetX([-10, 10])
-    .failOffsetY([-12, 12])
-    .onUpdate((e) => {
-      const base = isOpen ? OPEN_OFFSET : 0;
-      let next = base + e.translationX;
-      if (next > 0) next = next * 0.2;
-      if (next < OPEN_OFFSET - 32) next = OPEN_OFFSET - 32 + (next - (OPEN_OFFSET - 32)) * 0.2;
-      tx.value = next;
-    })
-    .onEnd((e) => {
-      const d = e.translationX;
-      if (isOpen) {
-        if (d > 60) {
-          tx.value = withTiming(0, { duration: 220 });
-          runOnJS(onOpen)(null);
-        } else {
-          tx.value = withSpring(OPEN_OFFSET, { damping: 20, stiffness: 220 });
-        }
-      } else {
-        if (d < -60) {
-          tx.value = withSpring(OPEN_OFFSET, { damping: 20, stiffness: 220 });
-          runOnJS(onOpen)(user.id);
-        } else {
-          tx.value = withTiming(0, { duration: 220 });
-        }
-      }
-    });
+  // Memoize the gesture so GestureDetector doesn't get a fresh instance each
+  // render — only rebuilds when its closures actually need new values. `tx`
+  // is a stable shared-value ref (excluded from deps for that reason).
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-10, 10])
+        .failOffsetY([-12, 12])
+        .onUpdate((e) => {
+          const base = isOpen ? OPEN_OFFSET : 0;
+          let next = base + e.translationX;
+          if (next > 0) next = next * 0.2;
+          if (next < OPEN_OFFSET - 32) next = OPEN_OFFSET - 32 + (next - (OPEN_OFFSET - 32)) * 0.2;
+          tx.value = next;
+        })
+        .onEnd((e) => {
+          const d = e.translationX;
+          if (isOpen) {
+            if (d > 60) {
+              tx.value = withTiming(0, { duration: 220 });
+              runOnJS(onOpen)(null);
+            } else {
+              tx.value = withSpring(OPEN_OFFSET, { damping: 20, stiffness: 220 });
+            }
+          } else {
+            if (d < -60) {
+              tx.value = withSpring(OPEN_OFFSET, { damping: 20, stiffness: 220 });
+              runOnJS(onOpen)(user.id);
+            } else {
+              tx.value = withTiming(0, { duration: 220 });
+            }
+          }
+        }),
+    [isOpen, onOpen, user.id, tx],
+  );
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tx.value }],
@@ -107,7 +114,14 @@ function UserCardImpl({ user, isOpen, onOpen, onTap, onEdit, onDelete }: Props) 
       <GestureDetector gesture={pan}>
         <Animated.View style={[styles.card, cardStyle]}>
           <Pressable onPress={handlePress} style={styles.cardInner}>
-            <Avatar first={user.first} last={user.last} color={user.color} size={44} />
+            <Avatar
+              first={user.first}
+              last={user.last}
+              color={user.color}
+              size={44}
+              imageUri={user.profileImageUrl}
+              fallbackImage={USER_AVATAR_FALLBACK}
+            />
 
             <View style={styles.body}>
               <View style={styles.row1}>

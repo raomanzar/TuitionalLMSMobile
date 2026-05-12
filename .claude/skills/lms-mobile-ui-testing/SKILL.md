@@ -1,19 +1,36 @@
 ---
 name: lms-mobile-ui-testing
 description: >
-  Structural and functional UI quality audit for the Tuitional LMS Mobile app
-  (Expo SDK 54 + React Native 0.81 + Expo Router 6 + StyleSheet + League Spartan
-  via expo-font). Trigger when the user asks to check, audit, review, or fix UI
-  issues — layout bugs, responsive scaling across phones/tablets, FlatList
-  virtualization, swipe gestures, sheet/modal behavior, safe-area handling,
-  keyboard avoidance, accessibility basics, or "something looks off". Also
-  trigger when the user shares a component / screen file for review.
-  **Do not** suggest color, spacing, font-family, radius, or shadow changes —
-  those belong to the design system (see `lms-mobile-ui-pipeline` skill). For
-  deep performance profiling (Hermes, Reanimated worklets, render budgets, CI
-  flashlight gates) defer to `lms-mobile-performance`. For authentication,
-  token storage, deep-link safety, certificate pinning, or any security review
-  defer to `lms-mobile-security`.
+  Structural and functional UI **presence-check / audit** skill for the
+  Tuitional LMS Mobile app (Expo SDK 54 + React Native 0.81 + Expo Router 6 +
+  StyleSheet + League Spartan via expo-font). Verb: **check / verify / flag /
+  confirm-present** — does NOT own patterns or values, only audits whether
+  they're wired. Trigger when the user asks to check, audit, review, or fix UI
+  issues — layout bugs, responsive scaling across phones / tablets, FlatList
+  prop **presence** (not values — defer to `lms-mobile-performance`), swipe
+  gesture **presence** (not pattern — defer to `lms-mobile-ui-pipeline`),
+  sheet / modal behavior, safe-area handling, keyboard avoidance,
+  accessibility basics, or "something looks off". Also trigger when the user
+  shares a component / screen file for review. **Do NOT** suggest color,
+  spacing, font-family, radius, or shadow changes — those belong to
+  `lms-mobile-ui-pipeline` (design system). For deep performance profiling
+  (Hermes, Reanimated worklets, render budgets, CI flashlight gates) defer to
+  `lms-mobile-performance`. For authentication, token storage, deep-link
+  safety, certificate pinning, or any security review defer to
+  `lms-mobile-security`.
+defers_to:
+  - skill: lms-mobile-ui-pipeline
+    for: design tokens, FlatList prop *contract*, swipe-gesture *pattern*, sheet pattern, component placement
+  - skill: lms-mobile-performance
+    for: FlatList tuning *values*, Reanimated worklet correctness, deep profiling
+  - skill: lms-mobile-platform
+    for: gesture composition, Expo SDK package integration, new-module bootstrap
+  - skill: lms-mobile-api-integration
+    for: TanStack Query wiring, query-key factory, axios instance, mappers
+  - skill: lms-mobile-security
+    for: auth route guards, deep-link validation, env exposure, log redaction
+  - skill: lms-mobile-refactoring
+    for: type tightening, dead-code removal, ScrollView → FlatList migration
 ---
 
 # UI QA — Mobile Audit Protocol (Tuitional LMS Mobile)
@@ -221,9 +238,13 @@ const passwordRef = useRef<TextInput>(null);
 
 ---
 
-## 7. FlatList & Virtualization Checks
+## 7. FlatList & Virtualization Checks — *presence only*
 
-The Users module renders 700+ rows. List performance is a first-order concern.
+This skill audits **prop presence + memoization wiring**. It does NOT pick tuning values.
+- The *prop contract* (which props every list must set) is owned by `lms-mobile-ui-pipeline §5`.
+- The *prop values* (`initialNumToRender`, `maxToRenderPerBatch`, `windowSize`) are owned by `lms-mobile-performance §2.2`.
+
+When auditing, confirm the props are **set** — when the user wants to know **which value is correct**, load `lms-mobile-performance`.
 
 - [ ] `data` is passed a stable reference — `useMemo` the filtered/sorted result
 - [ ] `keyExtractor` is **module-level** when the key derives only from item props
@@ -231,15 +252,16 @@ The Users module renders 700+ rows. List performance is a first-order concern.
 - [ ] List items are wrapped in `React.memo` — see [UserCard.tsx](../../../src/components/ui/users/UserCard.tsx)
 - [ ] `ListEmptyComponent` / `ListFooterComponent` are `useMemo`'d (otherwise the list re-mounts them on every render)
 - [ ] `removeClippedSubviews` is set on long lists
-- [ ] `initialNumToRender` ≈ 1.5× viewport-fulls (default 10 is fine for cards)
-- [ ] `maxToRenderPerBatch={8}` and `windowSize={9}` for 500+ row lists
+- [ ] `initialNumToRender` is set (value: defer to `lms-mobile-performance §2.2`)
+- [ ] `maxToRenderPerBatch` and `windowSize` are set (values: defer to `lms-mobile-performance §2.2`)
 - [ ] `getItemLayout` provided when row height is constant — unlocks instant scroll-to-index
 - [ ] Pull-to-refresh wired (`refreshing` + `onRefresh` against TanStack Query's `refetch`)
 - [ ] `onEndReached` + `onEndReachedThreshold` for infinite scroll — confirm the loader doesn't flicker on every render
 - [ ] No `style={{ flex: 1 }}` parent with no explicit height — list content collapses to 0 height on Android
 
 ```tsx
-// ✅ Correct — module-level keyExtractor, memoized renderItem
+// ✅ Correct shape — module-level keyExtractor, memoized renderItem,
+//    tuning props PRESENT (values come from performance §2.2, not from this skill)
 const keyExtractor = (u: User) => String(u.id);
 
 function UsersScreen() {
@@ -253,9 +275,9 @@ function UsersScreen() {
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       removeClippedSubviews
-      initialNumToRender={10}
-      maxToRenderPerBatch={8}
-      windowSize={9}
+      initialNumToRender={/* see performance §2.2 */}
+      maxToRenderPerBatch={/* see performance §2.2 */}
+      windowSize={/* see performance §2.2 */}
     />
   );
 }

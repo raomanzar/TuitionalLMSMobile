@@ -6,10 +6,12 @@ import {
   Radius,
   Spacing,
 } from "@/constants/theme";
+import { useAuthActions } from "@/stores";
 import { Feather } from "@expo/vector-icons";
 import type { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { DrawerContentScrollView } from "@react-navigation/drawer";
-import React from "react";
+import { router } from "expo-router";
+import React, { useCallback } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 const META: Record<
@@ -17,12 +19,20 @@ const META: Record<
   { label: string; icon: keyof typeof Feather.glyphMap }
 > = {
   users: { label: "Users", icon: "users" },
+  roles: { label: "Roles", icon: "shield" },
+  "cancelled-classes": { label: "Cancelled Classes", icon: "x-circle" },
   enrollments: { label: "Enrollments", icon: "clipboard" },
   "enrollments-logs": { label: "Logs", icon: "file-text" },
 };
 
 export function AppDrawerContent(props: DrawerContentComponentProps) {
   const { state, navigation } = props;
+  const { signOut } = useAuthActions();
+
+  const handleSignOut = useCallback(() => {
+    signOut();
+    router.replace("/signin");
+  }, [signOut]);
 
   return (
     <DrawerContentScrollView
@@ -72,6 +82,18 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
           );
         })}
       </View>
+
+      <View style={styles.footer}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Logout"
+          onPress={handleSignOut}
+          style={styles.logout}
+        >
+          <Text style={styles.logoutLabel}>Logout</Text>
+          <Feather name="log-out" size={16} color={Colors.mainBlue} />
+        </Pressable>
+      </View>
     </DrawerContentScrollView>
   );
 }
@@ -82,6 +104,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingTop: 0,
+    flexGrow: 1,
   },
   header: {
     // paddingHorizontal: Spacing.s5,
@@ -110,5 +133,27 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: FontSize.regular16,
     letterSpacing: LetterSpacing.tight,
+  },
+  footer: {
+    marginTop: "auto",
+    paddingHorizontal: Spacing.s3,
+    paddingTop: Spacing.s4,
+    paddingBottom: Spacing.s4,
+    alignItems: "flex-start",
+  },
+  logout: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.s2,
+    paddingHorizontal: Spacing.s3,
+    paddingVertical: Spacing.s2,
+    borderRadius: Radius.control,
+    backgroundColor: Colors.white,
+  },
+  logoutLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSize.regular14,
+    letterSpacing: LetterSpacing.tight,
+    color: Colors.text,
   },
 });

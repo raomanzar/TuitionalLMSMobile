@@ -3,17 +3,33 @@ name: lms-mobile-performance
 description: >
   Mobile performance skill for the Tuitional LMS Mobile app — Hermes sampling
   profiler, react-native-performance markers, why-did-you-render dev guard,
-  FlatList virtualization tuning matrix (initialNumToRender, windowSize,
-  maxToRenderPerBatch, getItemLayout, removeClippedSubviews), Reanimated 4
-  worklet correctness, TanStack Query perceived-perf (keepPreviousData,
-  select-as-mapper, per-resource staleTime), expo-image cache discipline on
-  long lists, JS bundle size budget via expo export + source-map-explorer,
-  flashlight FPS / memory CI gate, and per-screen perf budgets (TTI, scroll
-  FPS, JS heap). Trigger when the user asks "why is this slow", reports
-  jank/dropped frames, asks to tune a list, profile a screen, audit Reanimated
-  worklets, or set up a CI perf gate. Defer styling / pattern questions to
+  FlatList virtualization **tuning values** (the numeric matrix:
+  initialNumToRender / windowSize / maxToRenderPerBatch / getItemLayout /
+  removeClippedSubviews), **Reanimated 4 worklet correctness rules** (no
+  console.log, no JS-scope reads, runOnJS placement), TanStack Query
+  perceived-perf overlays only (keepPreviousData, select-as-mapper,
+  prefetchQuery, optimistic via setQueryData, per-resource staleTime),
+  expo-image cache discipline on long lists, JS bundle size budget via
+  expo export + source-map-explorer, flashlight FPS / memory CI gate, and
+  per-screen perf budgets (TTI, scroll FPS, JS heap). Trigger when the user
+  asks "why is this slow", reports jank / dropped frames, asks for a tuning
+  value, profiles a screen, audits Reanimated worklets, or sets up a CI perf
+  gate. Defer the *prop contract* (which props every list must set) to
   `lms-mobile-ui-pipeline`; defer the surface-level perf checklist used during
-  UI audits to `lms-mobile-ui-testing` §12.
+  a UI audit to `lms-mobile-ui-testing`; defer TanStack Query *correctness*
+  rules to `lms-mobile-api-integration`; defer gesture *composition* to
+  `lms-mobile-platform`.
+defers_to:
+  - skill: lms-mobile-ui-pipeline
+    for: FlatList prop *contract* (which props to set), swipe-gesture pattern, sheet pattern, design tokens
+  - skill: lms-mobile-api-integration
+    for: TanStack Query correctness rules (query-key factory, mappers in queryFn, mutation invalidation, enabled gating)
+  - skill: lms-mobile-platform
+    for: gesture composition (Race / Simultaneous / Exclusive, axis guards on Pan + scroll)
+  - skill: lms-mobile-ui-testing
+    for: surface-level UI perf checklist during an audit (§12 of that skill)
+  - skill: lms-mobile-security
+    for: any perf change that touches auth or token logging
 ---
 
 # Tuitional LMS Mobile — Performance Specification
@@ -160,20 +176,17 @@ grep -rn "runOnJS" src/ --include='*.tsx'      # check it's only in onEnd / onFi
 
 ---
 
-## 4. TanStack Query — perceived-perf playbook
+## 4. TanStack Query — perceived-perf overlays only
 
-Beyond the api-integration skill's correctness rules, these affect *feel*:
+Correctness rules (query-key factory, mappers in `queryFn`, never fetch in `useEffect`, mutation invalidation, `enabled: !!id` for detail queries before id is known) are owned by **[`lms-mobile-api-integration §6`](../lms-mobile-api-integration/SKILL.md)** — do not redefine here. This section adds *only* perceived-perf overlays on top of those correctness rules:
 
-| Pattern | Why | Where |
+| Overlay | Why | Where |
 |---|---|---|
 | `placeholderData: keepPreviousData` | List doesn't unmount on filter / page change | All paginated reads |
-| `select` mapper | Derivation runs once per cache, not per render | When screens read derived shape |
+| `select` mapper | Derivation runs once per cache, not per render | When screens read derived shape (the *primary* mapper still runs in `queryFn` per api-integration §6.3) |
 | Per-resource `staleTime` | Hot resources don't refetch on every focus | `users` 60s, reference data 24h |
-| `enabled: !!id` | Don't fire detail query before id is known | All `[id]` routes |
 | `prefetchQuery` on row tap | Detail screen is warm before it mounts | List → detail navigations |
 | `setQueryData` in `onSuccess` | Optimistic UI without invalidation latency | Mutations on visible list rows |
-
-> Mutation invalidation strategy is owned by `lms-mobile-api-integration` (always invalidate, never refetch). Don't redefine here.
 
 ---
 

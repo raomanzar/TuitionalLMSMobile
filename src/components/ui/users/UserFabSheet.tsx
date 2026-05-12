@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -17,14 +17,14 @@ type Props = {
   onClose: () => void;
 };
 
-export function UserFabSheet({ open, onClose }: Props) {
+function UserFabSheetImpl({ open, onClose }: Props) {
   const goto = (path: '/users/add' | '/users/add-relation' | '/users/export') => () => {
     onClose();
     router.push(path);
   };
 
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={open} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.scrim} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <Text style={styles.heading}>CREATE</Text>
@@ -56,6 +56,13 @@ export function UserFabSheet({ open, onClose }: Props) {
   );
 }
 
+/**
+ * Memoized so it doesn't re-render with the parent UsersScreen on every
+ * scroll frame (the animated header re-renders the parent constantly).
+ * `onClose` from the parent is already a stable `useCallback` reference.
+ */
+export const UserFabSheet = memo(UserFabSheetImpl);
+
 function Item({
   icon,
   color,
@@ -86,9 +93,8 @@ const styles = StyleSheet.create({
   scrim: {
     flex: 1,
     backgroundColor: Colors.scrimLight,
-    justifyContent: 'flex-end',
-    padding: 8,
-    paddingBottom: 100,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.s4,
   },
   sheet: {
     backgroundColor: Colors.white,

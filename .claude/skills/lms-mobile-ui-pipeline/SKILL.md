@@ -3,11 +3,30 @@ name: lms-mobile-ui-pipeline
 description: >
   Authoritative UI pipeline for the Tuitional LMS Mobile app — React Native +
   Expo Router, StyleSheet (no CSS), JS-based design tokens (mirrors web's
-  globals.css), Expo Router file-based routes, FlatList virtualization,
-  Modal-based bottom sheets, swipe-actions via Reanimated + GestureHandler,
-  and the global/<module> component split. Trigger when the user asks about
-  styling architecture, design tokens, navigation, lists, sheets, or how to
-  scaffold a new screen / component consistently with the rest of the codebase.
+  globals.css — canonical owner of Colors / Fonts / FontSize / LetterSpacing /
+  Spacing / Radius / Shadow / Gradients), Expo Router file-based routes,
+  FlatList virtualization **prop contract** (which props every list must set —
+  numeric *values* live in `lms-mobile-performance`), Modal-based bottom-sheet
+  pattern, swipe-action *pattern* (Pan + axis guards + useSharedValue —
+  worklet correctness lives in `lms-mobile-performance`, gesture composition
+  in `lms-mobile-platform`), and the global / ui/<module> component
+  placement decision. Trigger when the user asks about styling architecture,
+  design tokens, navigation wiring, list / sheet patterns, swipe-action
+  scaffolding, or component placement — not when they ask "what value should
+  initialNumToRender be" (that's `lms-mobile-performance §2.2`).
+defers_to:
+  - skill: lms-mobile-performance
+    for: FlatList tuning *values* (numeric matrix), Reanimated worklet correctness rules
+  - skill: lms-mobile-platform
+    for: gesture composition (Race / Simultaneous / Exclusive), Expo SDK package integration
+  - skill: lms-mobile-api-integration
+    for: TanStack Query hooks, query-key factory, axios instance
+  - skill: lms-mobile-security
+    for: auth route guards, deep-link validation
+  - skill: lms-mobile-ui-testing
+    for: structural / functional audit (presence checks, behavior verification)
+  - skill: lms-mobile-refactoring
+    for: ScrollView → FlatList migration when content becomes server-driven
 ---
 
 # Tuitional LMS Mobile — UI Pipeline Specification
@@ -243,7 +262,7 @@ const { id } = useLocalSearchParams<{ id?: string }>();
 
 ## 5. Lists — FlatList virtualization
 
-### 5.1 Required props (704+ row case)
+### 5.1 Required prop *contract* (this skill owns the prop list, not the values)
 
 ```tsx
 <Animated.FlatList
@@ -255,21 +274,21 @@ const { id } = useLocalSearchParams<{ id?: string }>();
   contentContainerStyle={listContentStyle} // useMemo
   showsVerticalScrollIndicator={false}
   removeClippedSubviews
-  initialNumToRender={10}
-  maxToRenderPerBatch={8}
-  windowSize={9}
+  initialNumToRender={/* see performance §2.2 */}
+  maxToRenderPerBatch={/* see performance §2.2 */}
+  windowSize={/* see performance §2.2 */}
   refreshing={isFetching && !isLoading}
   onRefresh={refetch}
 />
 ```
 
-| Prop | Why |
-|------|-----|
+| Prop | Why this skill cares |
+|------|----------------------|
 | `removeClippedSubviews` | Drops off-screen views from the native view hierarchy. |
-| `initialNumToRender` | First-paint budget. Aim for 1.5 viewport-fulls. |
-| `maxToRenderPerBatch` | Keeps frame budget tight during scroll. |
-| `windowSize` | Multiplier on initialNumToRender; 9 = ~9 screens of buffer. |
+| `initialNumToRender` / `maxToRenderPerBatch` / `windowSize` | Must be set — values come from `lms-mobile-performance §2.2`. |
 | `refreshing` + `onRefresh` | Pull-to-refresh. Wire to TanStack Query's `refetch`. |
+
+> **Boundary:** this skill owns the *prop contract* (which props every FlatList must set). Tuning values (`8`, `9`, `10`, etc.) live in `lms-mobile-performance §2.2`. When the agent needs to pick numbers, load that skill — do not redefine them here.
 
 ### 5.2 Don't wrap a list in `ScrollView`
 
@@ -344,7 +363,7 @@ const pan = Gesture.Pan()
 
 **Critical:** `activeOffsetX` + `failOffsetY` together prevent the swipe gesture from hijacking the FlatList's vertical scroll. Without them, scrolling the list will trigger card swipes.
 
-`runOnJS` is required when calling JS-side state setters from gesture handlers (which run on the UI thread).
+> **Boundary:** this skill owns the *swipe-action pattern* (Pan + axis guards + useSharedValue). Worklet correctness rules (`runOnJS` placement, no JS-scope reads, no `console.log`) live in `lms-mobile-performance §3`. Gesture *composition* (Race / Simultaneous / Exclusive) lives in `lms-mobile-platform §5`. When the agent needs either, load that skill — do not redefine here.
 
 ---
 

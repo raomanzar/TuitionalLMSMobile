@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { memo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import {
   Colors,
   Fonts,
@@ -16,6 +17,8 @@ import {
   type StatusFilter,
   type SyncFilter,
 } from '@/constants/users';
+import { countryNameForCode } from '@/constants/countries';
+import { CountryPickerModal } from './CountryPickerModal';
 
 type Props = {
   open: boolean;
@@ -26,14 +29,33 @@ type Props = {
   setStatus: (v: StatusFilter) => void;
   sync: SyncFilter;
   setSync: (v: SyncFilter) => void;
+  countryCode: string;
+  setCountryCode: (v: string) => void;
 };
 
-export function UserFilterSheet({ open, onClose, role, setRole, status, setStatus, sync, setSync }: Props) {
+function UserFilterSheetImpl({
+  open,
+  onClose,
+  role,
+  setRole,
+  status,
+  setStatus,
+  sync,
+  setSync,
+  countryCode,
+  setCountryCode,
+}: Props) {
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const reset = () => {
     setRole('All');
     setStatus('All');
     setSync('All');
+    setCountryCode('');
   };
+
+  const countryLabel = countryCode
+    ? countryNameForCode(countryCode) || countryCode
+    : 'All';
 
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
@@ -56,11 +78,38 @@ export function UserFilterSheet({ open, onClose, role, setRole, status, setStatu
           <Group title="Role" value={role} set={setRole} opts={ROLE_FILTERS} />
           <Group title="Status" value={status} set={setStatus} opts={STATUS_FILTERS} />
           <Group title="Sync" value={sync} set={setSync} opts={SYNC_FILTERS} />
+
+          <View style={styles.group}>
+            <Text style={styles.groupTitle}>Country</Text>
+            <Pressable
+              onPress={() => setCountryPickerOpen(true)}
+              style={styles.countryRow}
+            >
+              <Text style={styles.countryValue} numberOfLines={1}>
+                {countryLabel}
+              </Text>
+              <Feather name="chevron-down" size={16} color={Colors.textMuted} />
+            </Pressable>
+          </View>
+
+          <CountryPickerModal
+            open={countryPickerOpen}
+            value={countryCode}
+            onClose={() => setCountryPickerOpen(false)}
+            onSelect={setCountryCode}
+          />
         </Pressable>
       </Pressable>
     </Modal>
   );
 }
+
+/**
+ * Memoized so it doesn't re-render with the parent UsersScreen on every
+ * scroll frame. `setRole`/`setStatus`/... are React `useState` setters
+ * (stable), and `onClose` is a `useCallback` in the parent.
+ */
+export const UserFilterSheet = memo(UserFilterSheetImpl);
 
 function Group<T extends string>({
   title,
@@ -71,7 +120,7 @@ function Group<T extends string>({
   title: string;
   value: T;
   set: (v: T) => void;
-  opts: ReadonlyArray<T>;
+  opts: readonly T[];
 }) {
   return (
     <View style={styles.group}>
@@ -163,5 +212,23 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: FontSize.regular18,
     letterSpacing: LetterSpacing.normal,
+  },
+  countryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.control,
+    paddingHorizontal: 14,
+    height: 44,
+  },
+  countryValue: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: FontSize.regular18,
+    color: Colors.text,
+    letterSpacing: LetterSpacing.tight,
   },
 });

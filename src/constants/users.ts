@@ -15,25 +15,57 @@ export type User = {
   active: boolean;
   synced: boolean;
   color: string;
+  /** Empty string / missing → consumer should render `USER_AVATAR_FALLBACK`. */
+  profileImageUrl?: string;
 };
+
+/**
+ * Detail-screen shape: `User` plus the fields only the detail view needs
+ * (pseudo name, phone, country). Lives here so screens stay backend-agnostic;
+ * the mapper in `services/apis/users/mappers.ts` is the only thing that knows
+ * how the API populates these.
+ */
+export type UserDetail = User & {
+  /** Backend role ID — needed to pre-select the correct chip in the dynamic role picker. */
+  roleId: number;
+  pseudo: string;
+  phone: string;
+  city: string;
+  country: string;
+  countryCode: string;
+  gender: string;
+  calendarIntegrationEnabled: boolean;
+  /**
+   * Numeric ticket count, kept as string for the form input. Empty by default —
+   * the unified user object returned by `getUserById` doesn't include `ticket`,
+   * so the Edit form starts blank and the user re-enters when needed.
+   */
+  ticket: string;
+};
+
+/** Local placeholder shown when `profileImageUrl` is absent or empty. */
+export const USER_AVATAR_FALLBACK = require('../../assets/images/demmyPic.png');
 
 export type UserFilters = {
   search: string;
   role: RoleFilter;
   status: StatusFilter;
   sync: SyncFilter;
+  /** ISO 3166-1 alpha-2 country code, or empty for "all". */
+  countryCode: string;
 };
 
 // ─── Filter options ────────────────────────────────────────────
-export const ROLE_FILTERS: ReadonlyArray<RoleFilter> = ['All', 'Student', 'Teacher', 'Admin', 'Parent'];
-export const STATUS_FILTERS: ReadonlyArray<StatusFilter> = ['All', 'Active', 'Inactive'];
-export const SYNC_FILTERS: ReadonlyArray<SyncFilter> = ['All', 'Synced', 'Unsynced'];
+export const ROLE_FILTERS: readonly RoleFilter[] = ['All', 'Student', 'Teacher', 'Admin', 'Parent'];
+export const STATUS_FILTERS: readonly StatusFilter[] = ['All', 'Active', 'Inactive'];
+export const SYNC_FILTERS: readonly SyncFilter[] = ['All', 'Synced', 'Unsynced'];
 
 export const DEFAULT_USER_FILTERS: UserFilters = {
   search: '',
   role: 'All',
   status: 'All',
   sync: 'All',
+  countryCode: '',
 };
 
 // ─── Mock data (used by users.api.ts until the backend is wired) ─

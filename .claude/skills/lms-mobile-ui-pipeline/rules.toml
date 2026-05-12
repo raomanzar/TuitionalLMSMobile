@@ -1,7 +1,46 @@
 # Companion asset for the `lms-mobile-ui-pipeline` skill.
 # Mobile (React Native + Expo Router) coding standards.
 # The agent MUST follow these rules. No exceptions.
-# Last updated: 2026-04-30
+# Last updated: 2026-05-04
+
+# ─────────────────────────────────────────────
+# SCOPE
+# ─────────────────────────────────────────────
+
+[scope]
+covers = [
+  "design tokens (Colors / Fonts / FontSize / LetterSpacing / Spacing / Radius / Shadow / Gradients) — canonical owner",
+  "StyleSheet.create co-location with components",
+  "expo-router file-based routing (Stack/Tabs/route groups)",
+  "headerShown false — custom <TopBar/> contract",
+  "FlatList prop *contract* (which props every list must set)",
+  "Modal-based bottom-sheet pattern (scrim + sheet + grabber)",
+  "swipe-action *pattern* (Gesture.Pan + Reanimated useSharedValue + axis guards)",
+  "memoization rules for FlatList items (memo / useCallback / useMemo)",
+  "global/ vs ui/<module>/ component placement",
+  "tap-target sizes + accessibility-pair rule (color + text)",
+  "fonts loaded via expo-font + League Spartan asset map",
+  "useSafeAreaInsets contract — never hardcode notch heights",
+]
+
+# This skill is the CANONICAL owner of:
+#   - design tokens (every other skill points here)
+#   - FlatList prop *contract* (the list of props that must be set)
+#   - swipe-gesture *pattern* (axis guards, useSharedValue)
+#   - sheet / modal pattern
+#   - component placement decision (global vs module vs inline)
+
+defers_to = [
+  { topic = "FlatList prop *values* (tuning matrix numbers)", skill = "lms-mobile-performance (§2.2)" },
+  { topic = "Reanimated worklet correctness rules (no console.log, no JS-scope reads, runOnJS placement)", skill = "lms-mobile-performance (§3)" },
+  { topic = "Gesture *composition* (Race / Simultaneous / Exclusive)", skill = "lms-mobile-platform (§5)" },
+  { topic = "TanStack Query wiring + query-key factory + invalidation", skill = "lms-mobile-api-integration (§6)" },
+  { topic = "axios instance, helpers, token contract", skill = "lms-mobile-api-integration (§2)" },
+  { topic = "auth route guards + deep-link validation", skill = "lms-mobile-security" },
+  { topic = "new-module bootstrap + Expo SDK package integration", skill = "lms-mobile-platform (§1, §2)" },
+  { topic = "structural / functional UI audit (presence checks, behavior verification)", skill = "lms-mobile-ui-testing" },
+  { topic = "layer-skip grep recipes (canonical)", skill = "lms-mobile-api-integration ([validate])" },
+]
 
 # ─────────────────────────────────────────────
 # PATTERNS TO FOLLOW
@@ -50,17 +89,19 @@ queries_file = "<module>Queries.ts"          # all useQuery + useMutation in one
 
 [follow.lists]
 component = "Animated.FlatList"
-# Required props for any list rendering > 30 items:
+# This skill owns the prop *contract*. Numeric tuning *values* live in
+# lms-mobile-performance §2.2 (the tuning matrix). Do not duplicate values here.
 required_props = [
   "removeClippedSubviews",
-  "initialNumToRender",                       # default 10
-  "maxToRenderPerBatch",                      # default 8
-  "windowSize",                               # default 9
+  "initialNumToRender",     # value owned by lms-mobile-performance §2.2
+  "maxToRenderPerBatch",    # value owned by lms-mobile-performance §2.2
+  "windowSize",             # value owned by lms-mobile-performance §2.2
 ]
 key_extractor = "module-level const, not inline"
 render_item = "useCallback with stable deps"
 empty_footer = "useMemo, not inline JSX"
 pull_to_refresh = "refreshing={isFetching && !isLoading}, onRefresh={refetch}"
+tuning_values_owned_by = "lms-mobile-performance §2.2"
 
 [follow.memoization]
 list_items = "React.memo() — wrap every component rendered by FlatList"

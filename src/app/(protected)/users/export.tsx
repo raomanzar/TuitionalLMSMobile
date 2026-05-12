@@ -22,16 +22,16 @@ const COLUMNS = ['User ID', 'Name', 'Email', 'Role', 'Status', 'Created', 'Count
 
 type Scope = 'filtered' | 'all';
 
+const SCOPE_OPTIONS: { id: Scope; title: string; sub: string }[] = [
+  { id: 'filtered', title: 'Current filter', sub: '238 users matching active filters' },
+  { id: 'all', title: 'All users', sub: '704 users · ignores filters' },
+];
+
 export default function ExportUsers() {
   const [scope, setScope] = useState<Scope>('filtered');
   const [sent, setSent] = useState(false);
 
   if (sent) return <ExportSuccessView />;
-
-  const SCOPE_OPTIONS: { id: Scope; title: string; sub: string }[] = [
-    { id: 'filtered', title: 'Current filter', sub: '238 users matching active filters' },
-    { id: 'all', title: 'All users', sub: '704 users · ignores filters' },
-  ];
 
   return (
     <View style={styles.root}>

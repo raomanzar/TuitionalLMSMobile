@@ -1,0 +1,298 @@
+# Companion asset for the `lms-mobile-ui-testing` skill.
+# Hard rules for structural / functional UI audits in the Tuitional LMS Mobile app.
+# This skill is a PRESENCE-CHECK / AUDIT skill — it verifies that patterns are wired,
+# but does not own the patterns themselves. Owners of each pattern live in `defers_to`.
+# Last updated: 2026-05-04
+
+[scope]
+covers = [
+  "responsive audit (phone → tablet width buckets)",
+  "navigation shell checks (headerShown false, router usage, back-button behavior)",
+  "typography / text-overflow QA (numberOfLines, ellipsis, lineHeight)",
+  "layout / scroll context (KeyboardAvoidingView, FlatList nesting, Pressable feedback)",
+  "image / media QA (expo-image presence, contentFit, accessibility)",
+  "form / interactive element QA (touch targets, autofill, keyboard chaining)",
+  "FlatList / virtualization PRESENCE checks (props wired, memo wrappers in place)",
+  "sheet / modal / gesture PRESENCE checks (onRequestClose, scrim, axis guards)",
+  "iOS-specific checks (safe-area, swipe-back, Dynamic Island, iPad rendering)",
+  "Android-specific checks (status bar, hardware back, ripple, edge-to-edge)",
+  "accessibility (structural — roles, labels, state, focus order, tap target size)",
+  "surface-level perf smoke checks during a UI audit (hand-off to performance §)",
+  "App Store / Play Store metadata audit (release prep)",
+]
+
+# Audit verb: presence / wiring / behavior. NEVER tuning values, design tokens, or perf depth.
+audit_verbs = ["check", "verify", "flag", "confirm-present"]
+
+# This skill DOES NOT own:
+# - the prop list for FlatList   → ui-pipeline owns the *contract*
+# - the values for FlatList props → performance owns the *tuning matrix*
+# - design tokens (colors, fonts, spacing, radius, shadow) → ui-pipeline (§ design system)
+# - worklet correctness rules → performance §3
+# - swipe-gesture pattern (Pan + Reanimated) → ui-pipeline §7
+# - axios / TanStack Query wiring → api-integration
+# - auth / deep-link / pinning → security
+# - new-module bootstrap order / Expo packages → platform
+
+defers_to = [
+  { topic = "FlatList prop *contract* (which props to set)", skill = "lms-mobile-ui-pipeline (§5)" },
+  { topic = "FlatList prop *values* (tuning matrix numbers)", skill = "lms-mobile-performance (§2.2)" },
+  { topic = "Reanimated worklet correctness rules", skill = "lms-mobile-performance (§3)" },
+  { topic = "Swipe-gesture pattern (Gesture.Pan composition)", skill = "lms-mobile-ui-pipeline (§7)" },
+  { topic = "Sheet / Modal pattern", skill = "lms-mobile-ui-pipeline (§6)" },
+  { topic = "Design tokens (Colors, Fonts, FontSize, Spacing, Radius, Shadow)", skill = "lms-mobile-ui-pipeline (§1, §8)" },
+  { topic = "TanStack Query wiring + query-key factory", skill = "lms-mobile-api-integration (§6)" },
+  { topic = "Auth route guards + deep-link validation", skill = "lms-mobile-security" },
+  { topic = "New-module bootstrap order + Expo SDK packages", skill = "lms-mobile-platform" },
+  { topic = "Deep performance profiling / FlatList tuning / CI gates", skill = "lms-mobile-performance" },
+]
+
+# ─────────────────────────────────────────────
+# AUDIT POSTURE
+# ─────────────────────────────────────────────
+
+[posture]
+# Structural / functional only. Never suggest design changes.
+out_of_scope = [
+  "color values",
+  "font family / weight choices",
+  "font size scale",
+  "letter spacing",
+  "border radius scale",
+  "shadow tokens",
+  "spacing scale",
+]
+# Flag accessibility contrast failures, but do not propose new color values — defer to design owner.
+
+# ─────────────────────────────────────────────
+# RESPONSIVE BUCKETS
+# ─────────────────────────────────────────────
+
+[responsive.width_buckets]
+compact      = "320–399px"     # iPhone SE 1st gen, very small Android
+standard     = "400–479px"     # iPhone 14, iPhone 15, Pixel 7
+large_phone  = "480–599px"     # iPhone 14 Pro Max, Galaxy S23 Ultra
+small_tablet = "600–767px"     # iPad Mini portrait
+tablet       = "768–1023px"    # iPad portrait
+large_tablet = "1024+"         # iPad landscape, iPad Pro
+
+[responsive.checks]
+no_horizontal_scroll = true
+no_clipped_content_at_320 = true
+runtime_layout_uses_useWindowDimensions = true   # not Dimensions.get('window') in render
+no_fixed_widths_above_smallest_viewport = true
+
+# ─────────────────────────────────────────────
+# NAVIGATION SHELL
+# ─────────────────────────────────────────────
+
+[navigation.checks]
+headerShown_false_everywhere = true
+uses_router_from_expo_router = true              # not raw useNavigation
+android_back_button_works = true                 # gesture + hardware
+ios_swipe_back_works = true                      # not blocked by full-screen GestureDetector
+tab_bar_hidden_on_full_screen_routes = true      # routes are siblings of (protected)/, not children
+tab_icons_min_44pt = true
+useLocalSearchParams_for_route_params = true
+
+# ─────────────────────────────────────────────
+# TYPOGRAPHY (PRESENCE only — values owned by ui-pipeline)
+# ─────────────────────────────────────────────
+
+[typography.checks]
+fontFamily_is_a_token = true                     # Fonts.* / FontFamily.*
+fontSize_is_a_token   = true                     # FontSize.*
+letterSpacing_is_a_token = true                  # LetterSpacing.*
+no_fontWeight_bold_string = true                 # use Fonts.bold family instead
+numberOfLines_set_for_long_text = true
+explicit_lineHeight_on_multiline = true
+loaded_via_expo_font_in_AppProviders = true
+
+# ─────────────────────────────────────────────
+# LAYOUT / SCROLL CONTEXT
+# ─────────────────────────────────────────────
+
+[layout.checks]
+no_taller_than_screen_View_without_scroll_wrapper = true
+flatlist_never_nested_in_scrollview = true
+keyboard_avoiding_view_on_form_screens = true    # behavior: padding (iOS) / height (Android)
+keyboardShouldPersistTaps_handled = true
+onPress_only_on_Pressable_or_Touchable = true
+pressable_has_visual_feedback = true             # pressed style or android_ripple
+
+# ─────────────────────────────────────────────
+# IMAGES (PRESENCE — pattern owned by ui-pipeline / performance)
+# ─────────────────────────────────────────────
+
+[images.checks]
+prefer_expo_image_for_network = true
+explicit_width_and_height = true
+contentFit_or_resizeMode_set = true
+avatar_fallback_when_uri_null = true
+decorative_images_have_accessible_false = true
+informational_images_have_accessibilityLabel = true
+
+# ─────────────────────────────────────────────
+# FORMS / INTERACTIVE
+# ─────────────────────────────────────────────
+
+[forms.checks]
+min_touch_target_44_or_48 = true                  # iOS 44pt / Android 48dp
+reuse_TextField_Field_SelectLook_PrimaryButton = true
+keyboardType_set_when_appropriate = true
+autoCapitalize_none_on_email_username = true
+autoComplete_textContentType_set = true
+returnKeyType_per_field = true
+onSubmitEditing_chains_focus = true
+submit_button_not_obscured_by_keyboard = true
+controlled_inputs_dont_reset_on_keyboard_toggle = true
+secureTextEntry_has_show_hide_toggle = true
+
+# ─────────────────────────────────────────────
+# FLATLIST PRESENCE-CHECK (NOT tuning values)
+# ─────────────────────────────────────────────
+
+[flatlist.presence]
+# Defer to ui-pipeline §5 for the *required prop list*.
+# Defer to performance §2.2 for the *values* of those props.
+# This skill only checks that the props are present and the memoization is correct.
+
+stable_data_reference        = "useMemo on filtered/sorted result"
+keyExtractor_module_level    = true
+renderItem_useCallback       = true
+list_items_wrapped_in_memo   = true
+ListEmpty_ListFooter_useMemo = true
+removeClippedSubviews_set_when_long = true
+get_item_layout_when_constant_height = true
+pull_to_refresh_wired_to_refetch = true
+
+# Concrete numeric tuning values are NOT owned here.
+# When auditing, confirm that initialNumToRender / maxToRenderPerBatch / windowSize are SET
+# (not which value is correct). If the user wants to know which value is correct,
+# load the `lms-mobile-performance` skill (§2.2 tuning matrix).
+tuning_values_owned_by = "lms-mobile-performance §2.2"
+
+# ─────────────────────────────────────────────
+# SHEETS / MODALS / GESTURES — PRESENCE only
+# ─────────────────────────────────────────────
+
+[sheets.presence]
+# The pattern is owned by ui-pipeline §6. This skill checks for its presence.
+modal_transparent_animationType_slide = true
+double_pressable_scrim_plus_body = true
+onRequestClose_wired = true                      # Android hardware back must dismiss
+grabber_pill_at_top = true
+sheet_height_max_90_percent = true
+long_sheet_internally_scrolls = true
+
+[gesture.presence]
+# Pattern is owned by ui-pipeline §7. Worklet rules owned by performance §3.
+# This skill ONLY checks that the axis guards are present and runOnJS is wrapping JS setters.
+activeOffsetX_present_for_horizontal_swipe = true
+failOffsetY_present_to_avoid_scroll_hijack = true
+runOnJS_present_around_js_setters = true
+
+# ─────────────────────────────────────────────
+# iOS / ANDROID
+# ─────────────────────────────────────────────
+
+[ios.checks]
+no_hardcoded_paddingTop_for_notch = true         # use useSafeAreaInsets()
+status_bar_style_per_screen = true               # <StatusBar style="..." />
+flex_chains_not_100_percent = true
+ios_swipe_back_not_blocked_by_overlay = true
+no_KeyboardAvoidingView_height_on_ios = true     # use padding
+
+[android.checks]
+status_bar_color_matches_screen = true
+soft_nav_bar_doesnt_overlap_pinned_buttons = true
+hardware_back_button_works = true
+android_ripple_on_Pressable = true
+includeFontPadding_false_on_custom_fonts = true
+elevation_paired_with_shadow_in_token = true     # Shadow.* must include both
+no_position_fixed = true                         # CSS-only, ignored on RN
+
+# ─────────────────────────────────────────────
+# ACCESSIBILITY — STRUCTURAL ONLY
+# ─────────────────────────────────────────────
+
+[accessibility.structural]
+accessibilityRole_set_on_pressables = true
+accessibilityLabel_set_on_interactive = true
+accessibilityState_for_selected_disabled_etc = true
+form_inputs_have_associated_label = true
+decorative_icons_have_accessible_false = true
+focus_order_logical = true
+touch_targets_min_44pt_iOS_or_48dp_android = true
+text_scales_with_dynamic_type = true             # no allowFontScaling=false except on monospace numerals
+color_never_sole_state_indicator = true
+modal_focus_traps_correctly = true
+
+# This skill DOES NOT propose color value changes for contrast failures.
+# Flag the failure; the design owner / ui-pipeline owns the fix.
+contrast_failures = "flag only — defer fix to design owner via ui-pipeline"
+
+# ─────────────────────────────────────────────
+# PERFORMANCE — SURFACE SMOKE ONLY
+# ─────────────────────────────────────────────
+
+[performance.surface]
+# This is the SHALLOW checklist used DURING a UI audit.
+# Anything deeper — measurement, profiling, tuning, budgets — load `lms-mobile-performance`.
+no_console_log_in_components = true
+list_items_wrapped_in_memo = true
+handlers_useCallback = true
+prop_objects_useMemo = true
+no_fetch_in_useEffect = true                     # server state belongs in TanStack Query
+no_raw_axios_or_fetch_in_components = true
+no_anonymous_renderItem_or_keyExtractor = true
+worklets_have_directive_or_use_animated_helpers = true
+
+deep_perf_owned_by = "lms-mobile-performance"
+
+# ─────────────────────────────────────────────
+# RELEASE METADATA AUDIT (when shipping)
+# ─────────────────────────────────────────────
+
+[release.checks]
+app_json_has_correct_name_slug_version = true
+ios_bundleIdentifier_correct_and_stable = true
+android_package_correct_and_stable = true
+icon_and_splash_present_at_required_densities = true
+infoPlist_strings_user_readable = true           # NSCameraUsageDescription etc.
+android_permissions_minimal = true
+eas_profiles_correct = true
+deep_link_uri_scheme_registered = true
+
+# ─────────────────────────────────────────────
+# REPORT FORMAT
+# ─────────────────────────────────────────────
+
+[report]
+required_format = "Critical / Warning / Minor / Passing"
+include_inline_fix = true                        # never just describe; provide code
+omit_design_value_changes = true                 # colors / fonts / spacing / radii / shadows
+
+# ─────────────────────────────────────────────
+# GREP RECIPES — fail-closed during UI audit
+# ─────────────────────────────────────────────
+
+[validate.grep]
+hardcoded_hex          = "grep -rn -E '#[0-9a-fA-F]{3,8}|rgba?\\(' src/components src/app"
+bare_font_size         = "grep -rn -E 'fontSize:\\s*[0-9]' src/components src/app"
+bare_font_weight       = "grep -rn 'fontWeight:' src/components src/app"
+inline_text_input      = "grep -rn '<TextInput' src/app"
+header_shown_leakage   = "grep -rn 'headerShown' src/app"
+flatlist_no_keyextractor = "grep -rn 'FlatList' src/components src/app | grep -v keyExtractor"
+hardcoded_notch        = "grep -rn -E 'paddingTop:\\s*(44|47|48|50)' src/"
+raw_axios_in_components = "grep -rn -E 'axios\\.|fetch\\(' src/components src/app"
+
+# ─────────────────────────────────────────────
+# PERMISSIONS
+# ─────────────────────────────────────────────
+
+[permission]
+require_explicit_approval_to_modify_existing_components = true
+require_explicit_approval_to_modify_constants_theme    = true
+never_propose_design_value_changes = true
+never_push_to_main = true

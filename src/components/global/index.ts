@@ -9,3 +9,4 @@ export { Field, SectionTitle } from './Field';
 export { TextField } from './TextField';
 export { SelectLook } from './SelectLook';
 export { PrimaryButton } from './PrimaryButton';
+export { ProtectedNavRow } from './ProtectedNavRow';

@@ -47,24 +47,25 @@ list = ["auth", "enrollments", "schedule", "billing", "chat"]
 target_shape = "match `users` exactly"
 
 # ─────────────────────────────────────────────
-# LAYER-SKIP GREP RECIPES (fail-closed)
+# LAYER-SKIP GREP RECIPES — owned elsewhere
 # ─────────────────────────────────────────────
 
 [grep]
-# All must return zero matches in CI before merge.
+# Canonical greps live in:
+#   - lms-mobile-api-integration/rules.toml [validate]  (axios in components, inline query keys,
+#                                                       any in helpers, BASE_URL concat,
+#                                                       React in mappers, raw axios/fetch in screens)
+#   - lms-mobile-ui-pipeline/rules.toml      [validate]  (hex colors, rgba, bare font sizes)
+#   - lms-mobile-platform/rules.toml         [validate]  (relative deep paths)
+# This skill DOES NOT redefine recipes — load the canonical owners and run them.
 
-axios_in_components       = "grep -rn '@/services/axios' src/components src/app"
-inline_query_keys         = "grep -rn 'queryKey:\\s*\\[' src/components src/app"
-any_in_helpers            = "grep -rn ': any\\b\\|<any>\\|as any\\b' src/services/apis/*/helpers.ts src/services/apis/*/endpoint.ts"
-base_url_concat           = "grep -rn 'BASE_URL\\|baseURL' src/services/apis/*/endpoint.ts"
-react_in_mappers          = "grep -rn 'from .react.\\|useState\\|useEffect' src/services/apis/*/mappers.ts"
-react_or_redux_in_services = "grep -rn 'from .react.\\|@reduxjs\\|react-redux' src/services/apis/"
-raw_axios_or_fetch_in_screens = "grep -rn -E 'import .* from .axios.|fetch\\s*\\(' src/components src/app"
-relative_deep_paths       = "grep -rn 'from .\\.\\./\\.\\./\\.\\./' src/"
-hex_colors_outside_theme  = "grep -rn -E '#[0-9a-fA-F]{3,8}|rgba?\\(' src/components src/app"
-bare_font_sizes           = "grep -rn -E 'fontSize:\\s*[0-9]' src/components src/app"
-
+owned_by = [
+  "lms-mobile-api-integration ([validate]) — layer-skip recipes",
+  "lms-mobile-ui-pipeline ([validate]) — token-discipline recipes",
+  "lms-mobile-platform ([validate]) — relative-deep-path recipe",
+]
 bundle_into_script = "scripts/audit-layer-skips.sh"
+add_new_recipe_to = "the canonical owner above — never duplicate here"
 
 # ─────────────────────────────────────────────
 # TYPE TIGHTENING
@@ -133,17 +134,19 @@ when_changing_public_shape = "update every consumer in the same change"
 # ─────────────────────────────────────────────
 
 [checklist]
+# File-creation ORDER is owned by lms-mobile-platform §1 (canonical bootstrap).
+# This skill's checklist is the *refactor* order, which references that bootstrap as one step.
 order = [
   "diff file tree against users/",
-  "create missing files in api-integration order",
+  "bootstrap missing files in fixed order — defer to lms-mobile-platform §1",
   "replace every `any` with proper type",
   "migrate ScrollView over server data to FlatList",
-  "run §grep recipes (must be empty)",
+  "run layer-skip + token-discipline greps — defer to api-integration / ui-pipeline [validate]",
   "verify import boundaries",
   "verify naming conventions",
   "ts-prune for dead code",
   "npx tsc --noEmit && npm run lint",
-  "spot-check on device (defer to ui-testing)",
+  "spot-check on device — defer to lms-mobile-ui-testing",
 ]
 
 # ─────────────────────────────────────────────

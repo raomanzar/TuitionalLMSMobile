@@ -82,10 +82,10 @@ forbidden_mount_in = "src/app/_layout.tsx"            # root layout = fonts + sp
 # ─────────────────────────────────────────────
 
 [reanimated.worklet_rules]
-directive            = "'worklet' required (or use useAnimatedStyle / useAnimatedScrollHandler)"
-no_js_scope_reads    = true
-no_console_log       = true                            # serializes through bridge
-runOnJS_on           = "onEnd / commit, NOT onUpdate / onActive"
+# Worklet correctness rules are owned by lms-mobile-performance §3.
+# This skill owns COMPOSITION (Race / Simultaneous / Exclusive, axis guards on Pan + scroll).
+owned_by = "lms-mobile-performance §3"
+loaded_when = "agent is touching a worklet body"
 
 [gesture.pan_with_flatlist]
 required_axes_guards = ["activeOffsetX([-10, 10])", "failOffsetY([-12, 12])"]

@@ -1,5 +1,7 @@
-import { Redirect } from 'expo-router';
+import { useIsAuthenticated } from "@/stores";
+import { Redirect } from "expo-router";
 
 export default function Index() {
-  return <Redirect href="/users" />;
+  const isAuthenticated = useIsAuthenticated();
+  return <Redirect href={isAuthenticated ? "/users" : "/signin"} />;
 }

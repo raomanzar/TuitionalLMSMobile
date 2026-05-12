@@ -10,12 +10,12 @@ Tuitional LMS Mobile — React Native / Expo Router LMS. Multi-role (superAdmin,
 
 - **Expo SDK 54** · **React Native 0.81** · **React 19.1** · **TypeScript 5.9**
 - **Expo Router 6** — file-based routing under `src/app/`. Typed routes (`experiments.typedRoutes`) enabled. Use the `router` from `expo-router`, never raw `useNavigation`.
-- **Navigation primitives:** `Tabs` (custom `tabBar`) + `Stack`. `headerShown: false` everywhere — every screen renders its own [TopBar](src/components/global/TopBar.tsx). Never re-enable the native header (introduces a hairline divider that doesn't match the design system).
+- **Navigation primitives:** `Drawer` (from `expo-router/drawer`, custom [AppDrawerContent](src/components/global/AppDrawerContent.tsx)) at the `(protected)/` root + nested `Stack`s per module (e.g. `(protected)/users/_layout.tsx`). Public auth routes live in `(public)/` behind their own `Stack`. `headerShown: false` everywhere — every screen renders its own [TopBar](src/components/global/TopBar.tsx). Never re-enable the native header (introduces a hairline divider that doesn't match the design system).
 - **Animations / gestures:** `react-native-reanimated` 4 + `react-native-gesture-handler` 2 (swipe actions on cards, animated headers).
 - **Styling:** `StyleSheet.create` only. Tokens from [src/constants/theme/](src/constants/theme/) (colors, typography, radius, spacing, shadows, gradients). No inline arbitrary values, no `sx={}`, no Tailwind, no styled-components.
 - **Fonts:** League Spartan (six weights) loaded via `expo-font` from [src/providers/AppProviders.tsx](src/providers/AppProviders.tsx) — asset map lives in [src/constants/theme/typography.ts](src/constants/theme/typography.ts).
 - **Server state:** TanStack Query 5 (`@tanstack/react-query`). Query client in [src/lib/queryClient.ts](src/lib/queryClient.ts). Never fetch in `useEffect`.
-- **Client state:** local `useState` for now. Redux not introduced yet — only add when shared cross-screen state is real.
+- **Client state:** Zustand 5 for cross-screen shared state — stores live in [src/stores/](src/stores/), one file per slice (`authStore.ts`, ...). Sensitive slices use the `persist` middleware backed by the [secureStorage](src/stores/middleware/secureStorage.ts) adapter (wraps `expo-secure-store`); non-sensitive slices stay in-memory. Pattern: nest mutators under an `actions` key and export atomic selectors (`useAuthToken`, `useAuthActions`, ...) so components re-render only on the slice they read. Local `useState` for ephemeral UI state — don't reach for Zustand unless the state is shared across screens. Redux not used.
 - **HTTP:** Axios via a single shared instance in [src/services/axios/config.ts](src/services/axios/config.ts) with token injection via request interceptor. Helpers (`AxiosGet/Post/Put/Patch/Delete`) in [src/services/axios/helpers.ts](src/services/axios/helpers.ts) — they take only `(url, data?)`, never a `config` object.
 - **API pattern (per module):** [src/services/apis/`<module>`/](src/services/apis/) → `endpoint.ts` (path builders, **path-only**, axios instance prepends `baseURL`) + `helpers.ts` (typed callers) + `mappers.ts` (API → UI shape) + `index.ts` barrel.
 - **Realtime:** not wired yet. When chat lands, mount Socket.io inside a provider in `AppProviders.tsx`.
@@ -37,14 +37,18 @@ npm run lint                     # eslint
 
 ```
 src/app/                          # routes (Expo Router file-based)
-  _layout.tsx                     # fonts + AppProviders + root Stack
-  index.tsx                       # → /users redirect
-  (protected)/                    # bottom-tabs group
-    _layout.tsx                   # Tabs(custom AppTabBar)
-    users.tsx, enrollments.tsx, enrollments-logs.tsx
-  users/                          # full-screen module routes (tabs hidden)
-    _layout.tsx                   # Stack — sibling of (protected) so tabs disappear
-    add.tsx, edit.tsx, add-relation.tsx, deactivate.tsx, delete.tsx, export.tsx, [id].tsx
+  _layout.tsx                     # fonts + AppProviders + root Stack; gates render on useAuthHasHydrated()
+  index.tsx                       # → /users or /signin based on useIsAuthenticated()
+  (public)/                       # unauthed routes (redirect to /users if already signed in)
+    _layout.tsx                   # Stack
+    signin.tsx, forgot-password.tsx, password-reset.tsx, confirm-password.tsx
+  (protected)/                    # authed routes — Drawer with custom AppDrawerContent
+    _layout.tsx                   # Drawer; redirects to /signin via useIsAuthenticated()
+    enrollments.tsx, enrollments-logs.tsx
+    users/                        # nested Stack for users module
+      _layout.tsx, index.tsx, add.tsx, edit.tsx, add-relation.tsx, deactivate.tsx, delete.tsx, export.tsx, [id].tsx
+    cancelled-classes/            # nested Stack for cancelled-classes module
+      _layout.tsx, index.tsx, [id].tsx
 
 src/components/
   global/                         # cross-screen (Avatar, Badge, AppTabBar, TopBar, Field, TextField, SelectLook, PrimaryButton, ScreenBg, Placeholder)
@@ -62,6 +66,7 @@ src/constants/
   theme/                          # colors, typography, radius, spacing, shadows, gradients
   <module>.ts                     # types + filter constants + mock data per module
 
+src/stores/                       # Zustand stores (authStore.ts, ...) + middleware/secureStorage.ts
 src/types/                        # API types (`<module>.types.ts`)
 src/providers/                    # AppProviders (GestureHandlerRoot + SafeArea + QueryClient)
 src/lib/                          # queryClient.ts (and future SDK setup)
@@ -83,9 +88,16 @@ Mirrors the web's `globals.css`. Re-export hub: [src/constants/theme/index.ts](s
 
 `FontSize` reads `Dimensions.get('window').width` once at module load and resolves each `clamp()` to a device-appropriate px (phones land near min, tablets near max).
 
-## Auth (one-liner)
+## Auth
 
-Not yet wired. Token lives in a module-level variable in [src/services/axios/config.ts](src/services/axios/config.ts) — call `setAuthToken(jwt)` after login and the request interceptor attaches it. Replace the in-memory store with `expo-secure-store` when the auth flow ships, and add a `withAuth`-style guard at `(protected)/_layout.tsx`.
+Source of truth is the Zustand [authStore](src/stores/authStore.ts) — `{ token, user, hasHydrated, actions }`. Token + user are persisted to `expo-secure-store` via [secureStorage](src/stores/middleware/secureStorage.ts); `actions` and `hasHydrated` are runtime-only (excluded via `partialize`).
+
+- **Sign in / out:** `useAuthActions().signIn(token, user)` / `.signOut()`. `signIn` calls `setAuthToken(token)` on the axios instance, then sets store state — the request interceptor in [src/services/axios/config.ts](src/services/axios/config.ts) attaches the raw token (no `Bearer` prefix) on every request.
+- **Rehydration:** on app start the persist middleware reads from secure-store and `onRehydrateStorage` re-injects the token into axios, then flips `hasHydrated → true`. Gate any auth-dependent UI on `useAuthHasHydrated()` so guarded screens don't flash `/signin` during cold start.
+- **Route guard:** [src/app/(protected)/_layout.tsx](src/app/(protected)/_layout.tsx) reads `useIsAuthenticated()` and redirects to `/signin` when false.
+- **Selectors:** prefer the atomic exports (`useAuthToken`, `useAuthUser`, `useIsAuthenticated`, `useAuthHasHydrated`, `useAuthActions`) over `useAuthStore(s => ...)` inline — they keep re-renders scoped.
+
+The `let authToken` module variable in `axios/config.ts` is the interceptor's read-side cache, not the source of truth — never write to it from app code; always go through `useAuthActions()`.
 
 ## Non-negotiables
 

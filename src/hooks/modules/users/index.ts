@@ -3,4 +3,11 @@
  * Import from `'@/hooks/modules/users'` — internal files are implementation detail.
  */
 export { useFilteredUsers, countActiveFilters } from './useFilteredUsers';
-export { useUsersQuery, usersQueryKeys } from './usersQueries';
+export {
+  useCreateUserMutation,
+  useDeleteUserMutation,
+  useUpdateUserMutation,
+  useUserByIdQuery,
+  useUsersQuery,
+  usersQueryKeys,
+} from './usersQueries';

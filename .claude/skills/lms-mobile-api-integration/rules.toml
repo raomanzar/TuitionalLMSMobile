@@ -1,7 +1,45 @@
 # Companion asset for the `lms-mobile-api-integration` skill.
 # Hard rules for wiring APIs in the Tuitional LMS Mobile app.
 # The agent MUST follow these rules. No exceptions.
-# Last updated: 2026-04-30
+# Last updated: 2026-05-04
+
+# ─────────────────────────────────────────────
+# SCOPE
+# ─────────────────────────────────────────────
+
+[scope]
+covers = [
+  "four-layer architecture (HTTP instance → URL builders → service functions → hooks)",
+  "axios instance + request/response interceptors (canonical owner)",
+  "Layer-1 helpers (AxiosGet/Post/Put/Patch/Delete) — config-less signature",
+  "URL builders (path-only, typed options)",
+  "service functions (typed callers, no config arg)",
+  "mappers (API → UI shape converters)",
+  "TanStack Query hooks — query-key factory, useQuery, useMutation",
+  "type naming convention ({Resource}_Api_Payload_Type etc.)",
+  "import boundaries between screen / hook / service / mapper layers",
+  "module barrel + new-module file checklist",
+  "error-handling baseline (passthrough today, ApiError tomorrow)",
+  "layer-skip grep recipes (canonical) — no axios in components, no inline query keys, no any in helpers",
+]
+
+# This skill is the CANONICAL owner of:
+#   - axios instance code + token contract
+#   - layer-skip grep recipes (every other skill points here)
+#   - query-key factory shape
+#   - type naming convention
+
+defers_to = [
+  { topic = "perceived-perf overlays (placeholderData, select-mapper, prefetch, optimistic)", skill = "lms-mobile-performance (§4)" },
+  { topic = "token storage (expo-secure-store) + 401 refresh flow", skill = "lms-mobile-security (§1)" },
+  { topic = "AuthProvider mount in provider stack", skill = "lms-mobile-platform (§4.1)" },
+  { topic = "screen-side error display (Alert / Toast / inline)", skill = "lms-mobile-ui-pipeline / screens" },
+  { topic = "FlatList prop *contract* (consumer side)", skill = "lms-mobile-ui-pipeline (§5)" },
+  { topic = "FlatList tuning *values*", skill = "lms-mobile-performance (§2.2)" },
+  { topic = "module bootstrap orchestration (when scaffolding multiple layers at once)", skill = "lms-mobile-platform (§1)" },
+  { topic = "forward-scaffolding stubs to canonical pattern", skill = "lms-mobile-refactoring" },
+  { topic = "structural / functional UI audit of a hook consumer screen", skill = "lms-mobile-ui-testing" },
+]
 
 # ─────────────────────────────────────────────
 # ARCHITECTURE — four-layer contract

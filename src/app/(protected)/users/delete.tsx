@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -9,6 +9,8 @@ import {
   ScreenBg,
   TopBar,
 } from '@/components/global';
+import { useDeleteUserMutation, useUserByIdQuery } from '@/hooks/modules/users';
+import { useAuthToken } from '@/stores';
 import {
   Colors,
   Fonts,
@@ -18,20 +20,54 @@ import {
   Shadow,
 } from '@/constants/theme';
 import type { BadgeKind } from '@/components/global';
-import { USERS } from '@/constants/users';
-
-const FALLBACK = {
-  first: 'Diego',
-  last: 'Acuña',
-  email: 'swirlywhirly27@gmail.com',
-  role: 'Student' as const,
-  color: '#FFD3B6',
-};
 
 export default function DeleteUser() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const user = id ? USERS.find((x) => String(x.id) === id) : undefined;
-  const u = user ?? FALLBACK;
+  const token = useAuthToken();
+  const { data: u, isPending, error } = useUserByIdQuery(id, token);
+
+  const del = useDeleteUserMutation();
+  const handleDelete = useCallback(() => {
+    if (!id) return;
+    del.mutate(
+      { id },
+      {
+        onSuccess: () => router.back(),
+        onError: (err) => {
+          const msg = err instanceof Error ? err.message : 'Failed to delete user';
+          Alert.alert("Couldn't delete user", msg);
+        },
+      },
+    );
+  }, [id, del]);
+
+  if (isPending) {
+    return (
+      <View style={[styles.root, styles.centerFill]}>
+        <ScreenBg />
+        <View style={styles.topAbsolute}>
+          <TopBar title="Delete User" onBack={router.back} />
+        </View>
+        <ActivityIndicator color={Colors.mainBlue} />
+      </View>
+    );
+  }
+
+  if (error || !u) {
+    return (
+      <View style={[styles.root, styles.centerFill]}>
+        <ScreenBg />
+        <View style={styles.topAbsolute}>
+          <TopBar title="Delete User" onBack={router.back} />
+        </View>
+        <Text style={styles.notFoundTitle}>User not found</Text>
+        <Pressable onPress={router.back} style={styles.notFoundBtn} hitSlop={8}>
+          <Feather name="chevron-left" size={16} color={Colors.blue2} />
+          <Text style={styles.notFoundBtnText}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -73,9 +109,10 @@ export default function DeleteUser() {
             <PrimaryButton
               icon={<Feather name="trash-2" size={18} color={Colors.white} />}
               variant="danger"
-              onPress={router.back}
+              disabled={!id || del.isPending}
+              onPress={handleDelete}
             >
-              Delete
+              {del.isPending ? 'Deleting…' : 'Delete'}
             </PrimaryButton>
           </View>
         </View>
@@ -153,4 +190,30 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actions: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 320 },
+  centerFill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  notFoundTitle: {
+    fontFamily: Fonts.semibold,
+    fontSize: FontSize.regular18,
+    color: Colors.textMuted,
+    letterSpacing: LetterSpacing.tight,
+  },
+  notFoundBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.control,
+    backgroundColor: Colors.frost75,
+  },
+  notFoundBtnText: {
+    fontFamily: Fonts.semibold,
+    fontSize: FontSize.regular16,
+    color: Colors.blue2,
+    letterSpacing: LetterSpacing.normal,
+  },
 });

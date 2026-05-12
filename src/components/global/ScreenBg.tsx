@@ -1,6 +1,6 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { Colors } from "@/constants/theme";
+import React from "react";
+import { StyleSheet, View } from "react-native";
 
 /** Soft brand wash (top-right + mid-left blobs) for module form screens. */
 export function ScreenBg() {
@@ -14,7 +14,7 @@ export function ScreenBg() {
 
 const styles = StyleSheet.create({
   washTopRight: {
-    position: 'absolute',
+    position: "absolute",
     top: -100,
     right: -80,
     width: 320,
@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.wash1,
   },
   washMidLeft: {
-    position: 'absolute',
+    position: "absolute",
     top: 120,
     left: -120,
     width: 280,

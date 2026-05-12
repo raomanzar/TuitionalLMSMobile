@@ -2,19 +2,32 @@
 name: lms-mobile-platform
 description: >
   Cross-cutting Expo + React Native platform skill for the Tuitional LMS Mobile
-  app — end-to-end module bootstrapping, Expo SDK packages (expo-image,
+  app — end-to-end module **bootstrap orchestration** (canonical owner of
+  the file-creation order: types → endpoint → helpers → mappers → barrel →
+  constants → hooks → routes), Expo SDK package integration (expo-image,
   expo-haptics, expo-linking, expo-secure-store, expo-symbols, expo-font,
-  expo-status-bar, expo-splash-screen), Reanimated 4 + Gesture Handler 2
-  composition, platform splits (.ios.tsx / .android.tsx, Platform.select),
-  app lifecycle (AppState, deep-link handler, splash screen), EAS profiles,
-  Hermes / dev-client workflow, path aliases (@/*), and the Metro reset
-  protocol after file moves. Trigger when the user wants to scaffold a new
-  module, integrate an Expo native package, configure EAS, set up deep links,
-  or coordinate work that spans UI + API + routing layers. Defer styling and
-  component placement to `lms-mobile-ui-pipeline`; defer endpoint wiring and
-  TanStack Query hooks to `lms-mobile-api-integration`; defer profiling and
-  budgets to `lms-mobile-performance`; defer auth, token storage, deep-link
-  validation, and cert pinning to `lms-mobile-security`.
+  expo-status-bar, expo-splash-screen), **gesture composition** (Race /
+  Simultaneous / Exclusive, axis guards on Pan + scroll — worklet correctness
+  lives in `lms-mobile-performance`), platform splits (.ios.tsx /
+  .android.tsx, Platform.select), app lifecycle (AppState, deep-link handler,
+  splash screen), EAS profiles, Hermes / dev-client workflow, path aliases
+  (@/*), and the Metro reset protocol after file moves. Trigger when the user
+  wants to scaffold a new module, integrate an Expo native package, configure
+  EAS, set up deep links, or coordinate work that spans UI + API + routing
+  layers.
+defers_to:
+  - skill: lms-mobile-ui-pipeline
+    for: design tokens, StyleSheet co-location, component placement, FlatList prop contract, swipe-action pattern
+  - skill: lms-mobile-api-integration
+    for: endpoint / helper / mapper / hook wiring (the layer-by-layer file contents)
+  - skill: lms-mobile-performance
+    for: Reanimated worklet correctness rules, profiling, FlatList tuning values, CI perf gates
+  - skill: lms-mobile-security
+    for: auth token storage, route guards, deep-link allow-list / param validation, cert pinning, env exposure
+  - skill: lms-mobile-ui-testing
+    for: structural / functional audit (presence checks, behavior verification)
+  - skill: lms-mobile-refactoring
+    for: forward-scaffolding stubs to canonical, type tightening, dead-code removal
 ---
 
 # Tuitional LMS Mobile — Platform & Feature Scaffolding
@@ -146,17 +159,13 @@ Handler lives in `_layout.tsx` via `expo-linking`. Validation rules belong to `l
 
 ---
 
-## 5. Reanimated 4 + Gesture Handler 2 — composition rules
+## 5. Reanimated 4 + Gesture Handler 2 — *composition* rules
 
-The codebase uses Reanimated 4 (with Worklets 0.5) for swipe-action cards and animated headers. UI-pipeline §7 covers the basic pattern — this skill covers composition gotchas.
+The codebase uses Reanimated 4 (with Worklets 0.5) for swipe-action cards and animated headers. This skill owns **composition** (Race / Simultaneous / Exclusive, axis guards on Pan + scroll). The basic swipe-action **pattern** lives in `lms-mobile-ui-pipeline §7`; **worklet correctness rules** (no `console.log`, no JS-scope reads, `runOnJS` placement) live in `lms-mobile-performance §3`.
 
-### 5.1 Worklet boundary rules
+### 5.1 Worklet correctness — owned elsewhere
 
-- Every worklet body needs the `'worklet'` directive (or use `useAnimatedStyle` / `useAnimatedScrollHandler` which mark it implicitly).
-- **Never** read JS-scope state inside a worklet — captured at registration, not refreshed. Pass via `useSharedValue`.
-- **Never** `console.log` inside a worklet — every call serializes through the bridge.
-- JS-side state setters call sites: wrap in `runOnJS(setter)(arg)`.
-- `runOnJS` on every `onEnd` commit, not on every `onUpdate` (which fires per frame).
+Worklet rules — `'worklet'` directive, no JS-scope reads, no `console.log`, `runOnJS` only at commit (`onEnd` / `onFinalize`, not `onUpdate`) — live in `lms-mobile-performance §3`. When the agent needs them, load that skill. Do not redefine them here.
 
 ### 5.2 Composing Pan with vertical scroll
 

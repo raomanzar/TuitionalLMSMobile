@@ -3,18 +3,31 @@ name: lms-mobile-refactoring
 description: >
   Refactoring + codebase-cleanup skill for the Tuitional LMS Mobile app —
   forward-scaffolding the four stub modules (auth / enrollments / schedule /
-  billing / chat) to match the canonical `users` pattern, layer-skip detection
-  (axios import in components, inline query keys, `any` in helpers / endpoints),
-  type tightening (replace `any` with the right type from `src/types/<module>.types.ts`),
-  ScrollView → FlatList migration when content becomes server-driven, dead-code
-  removal (unused exports, scaffold stubs), pattern conformance against the
-  api-integration / ui-pipeline rules.toml files, naming convention enforcement,
-  and import-boundary cleanup. Trigger when the user asks to "clean up", "make
+  billing / chat) to match the canonical `users` pattern, **running** layer-skip
+  detection greps (the recipes themselves live in `lms-mobile-api-integration`
+  and `lms-mobile-ui-pipeline` — this skill executes them, does not redefine
+  them), type tightening (`any` → `src/types/<module>.types.ts`), ScrollView →
+  FlatList migration when content becomes server-driven, dead-code removal
+  (unused exports, scaffold stubs), naming convention enforcement, and
+  import-boundary cleanup. Trigger when the user asks to "clean up", "make
   this match the users pattern", "remove dead code", "tighten types", "audit
   for layer skips", or migrate a module from scaffold to canonical. Posture:
   forward-scaffolding (stubs → canonical), NOT legacy debt reduction. Do not
   touch the canonical `users` module without explicit approval — it is the
   source of truth.
+defers_to:
+  - skill: lms-mobile-platform
+    for: file-creation order during bootstrap (canonical owner of the order)
+  - skill: lms-mobile-api-integration
+    for: layer-skip grep recipes ([validate]), endpoint / helper / mapper / hook shape
+  - skill: lms-mobile-ui-pipeline
+    for: token-discipline grep recipes ([validate]), component placement, FlatList prop contract
+  - skill: lms-mobile-performance
+    for: FlatList tuning values, perceived-perf overlays
+  - skill: lms-mobile-security
+    for: any change touching auth, token, or deep-link surface
+  - skill: lms-mobile-ui-testing
+    for: device spot-check after refactor lands
 ---
 
 # Tuitional LMS Mobile — Refactoring & Cleanup
@@ -51,54 +64,17 @@ If the user asks to "clean up the codebase" without naming a module, the answer 
 
 ---
 
-## 2. Layer-skip detection — grep recipes that fail-closed
+## 2. Layer-skip detection — defer to canonical greps
 
-The api-integration skill defines **strict** layer boundaries. These greps catch every common violation. Add to CI as fail-closed steps.
+The canonical layer-skip grep set lives in [api-integration/rules.toml `[validate]`](../lms-mobile-api-integration/rules.toml) (axios in components, inline query keys, `any` in helpers / endpoints, BASE_URL concat, React in mappers, raw axios/fetch in screens). Token-discipline greps (hex / rgba / bare fontSize) live in [ui-pipeline/rules.toml `[validate]`](../lms-mobile-ui-pipeline/rules.toml).
 
-```bash
-# 1. Components / app must NEVER import from src/services/axios/*
-grep -rn '@/services/axios' src/components src/app
-# Must be empty.
+This skill **does not** redefine those recipes — that produces drift. Instead:
 
-# 2. Components / app must NEVER write inline query keys
-grep -rn "queryKey:\s*\[" src/components src/app
-# Must be empty.
+1. Load `lms-mobile-api-integration` for the **layer** grep set.
+2. Load `lms-mobile-ui-pipeline` for the **token** grep set.
+3. Run all of them in `scripts/audit-layer-skips.sh` — fail-closed in CI before merge.
 
-# 3. Helpers / endpoints must NEVER use `any`
-grep -rn ": any\b\|<any>\|as any\b" src/services/apis/*/helpers.ts src/services/apis/*/endpoint.ts
-# Must be empty.
-
-# 4. Endpoint files must NEVER concat BASE_URL
-grep -rn "BASE_URL\|baseURL" src/services/apis/*/endpoint.ts
-# Must be empty (axios instance prepends).
-
-# 5. Mappers must NEVER reach into React or hooks
-grep -rn "from 'react'\|useState\|useEffect" src/services/apis/*/mappers.ts
-# Must be empty.
-
-# 6. Endpoints / helpers must NEVER import React or Redux
-grep -rn "from 'react'\|@reduxjs\|react-redux" src/services/apis/
-# Must be empty.
-
-# 7. Screen files must NEVER raw axios / fetch
-grep -rn -E "import .* from 'axios'|fetch\s*\(" src/components src/app
-# Must be empty.
-
-# 8. No relative deep paths — @/* alias only
-grep -rn "from '\.\./\.\./\.\./" src/
-# Must be empty.
-
-# 9. `useEffect` must NEVER fetch — server state belongs in TanStack Query
-grep -rn "useEffect" src/components src/app -A 5 | grep -E "axios|fetch\(|api\."
-# Inspect every match.
-
-# 10. No bare hex colors / font sizes outside src/constants/theme
-grep -rn -E "#[0-9a-fA-F]{3,8}|rgba?\(" src/components src/app
-grep -rn -E "fontSize:\s*[0-9]" src/components src/app
-# Must be empty (or flagged for token migration).
-```
-
-Bundle these into a single script: `scripts/audit-layer-skips.sh`.
+If a recipe is missing, add it to the **canonical owner's** `rules.toml` (api-integration or ui-pipeline) — never duplicate it here.
 
 ---
 
@@ -254,20 +230,18 @@ When changing a public-shape (a barrel export):
 
 ## 10. Refactor checklist (per module)
 
-When scaffolding `enrollments` to canonical:
+When scaffolding a stub module (e.g. `enrollments`) to the canonical pattern:
 
-```
-☐ Compare file tree against `users/`              (§3.1)
-☐ Create missing files in api-integration order   (§3.2 — defer to api-integration skill)
-☐ Replace every `any` with the right type         (§4)
-☐ Replace `ScrollView` over server data with FlatList (§5)
-☐ Run layer-skip greps                            (§2 — must be empty)
-☐ Verify import boundaries                        (§8)
-☐ Verify naming conventions                       (§7)
-☐ Run `ts-prune` for dead code                    (§6)
-☐ npx tsc --noEmit && npm run lint                (§3.5)
-☐ Spot-check on device                            (defer to ui-testing)
-```
+1. **Diff** file tree against `users/` (§3.1).
+2. **Bootstrap** in fixed order — use [`lms-mobile-platform §1`](../lms-mobile-platform/SKILL.md) (canonical owner of the file-creation order). This skill does **not** redefine the order.
+3. **Tighten types** — replace every `any` with the right type from `src/types/<module>.types.ts` (§4).
+4. **Migrate** `ScrollView` over server-driven data → `FlatList` (§5).
+5. **Run layer-skip greps** (§2 → defers to api-integration / ui-pipeline / platform — must return zero matches).
+6. **Verify import boundaries** (§8).
+7. **Verify naming conventions** (§7).
+8. **Dead-code surface** — `ts-prune` (§6); do not auto-delete.
+9. **Validate** — `npx tsc --noEmit && npm run lint`.
+10. **Device spot-check** — defer to `lms-mobile-ui-testing`.
 
 ---
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -20,17 +20,8 @@ import {
   Spacing,
 } from '@/constants/theme';
 import type { BadgeKind } from '@/components/global';
-import { USERS } from '@/constants/users';
-
-const FALLBACK = {
-  first: 'Diego',
-  last: 'Acuña',
-  email: 'swirlywhirly27@gmail.com',
-  role: 'Student' as const,
-  color: '#FFD3B6',
-};
-
-const REASONS = ['Graduated', 'Left school', 'Policy violation', 'Duplicate account', 'Inactive 90+ days'];
+import { useUserByIdQuery } from '@/hooks/modules/users';
+import { useAuthToken } from '@/stores';
 
 type Mode = 'permanent' | 'temporary';
 type ModeOption = {
@@ -48,10 +39,34 @@ const MODE_OPTIONS: ModeOption[] = [
 
 export default function Deactivate() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const user = id ? USERS.find((x) => String(x.id) === id) : undefined;
-  const u = user ?? FALLBACK;
+  const token = useAuthToken();
+  const { data: u, isPending, error } = useUserByIdQuery(id, token);
   const [mode, setMode] = useState<Mode>('permanent');
   const [reason, setReason] = useState('');
+
+  if (isPending) {
+    return (
+      <View style={[styles.root, styles.centerFill]}>
+        <ScreenBg />
+        <TopBar title="Deactivate User" onBack={router.back} />
+        <ActivityIndicator color={Colors.mainBlue} />
+      </View>
+    );
+  }
+
+  if (error || !u) {
+    return (
+      <View style={[styles.root, styles.centerFill]}>
+        <ScreenBg />
+        <TopBar title="Deactivate User" onBack={router.back} />
+        <Text style={styles.notFoundTitle}>User not found</Text>
+        <Pressable onPress={router.back} style={styles.notFoundBtn} hitSlop={8}>
+          <Feather name="chevron-left" size={16} color={Colors.blue2} />
+          <Text style={styles.notFoundBtnText}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -117,26 +132,13 @@ export default function Deactivate() {
             })}
           </View>
 
-          <SectionTitle>Reason</SectionTitle>
-          <View style={styles.chipRow}>
-            {REASONS.map((c) => {
-              const on = reason === c;
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => setReason(c)}
-                  style={[styles.chip, on ? styles.chipOn : styles.chipOff]}
-                >
-                  <Text style={[styles.chipText, { color: on ? Colors.white : Colors.textSecondary }]}>{c}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
+          <SectionTitle>
+            Reason <Text style={styles.requiredMark}>*</Text>
+          </SectionTitle>
           <TextInput
             value={reason}
             onChangeText={setReason}
-            placeholder="Add details (optional)…"
+            placeholder="Add reason"
             placeholderTextColor={Colors.textMuted}
             multiline
             style={styles.textarea}
@@ -152,6 +154,7 @@ export default function Deactivate() {
               <PrimaryButton
                 icon={<Feather name="slash" size={18} color={Colors.white} />}
                 variant={mode === 'permanent' ? 'danger' : 'primary'}
+                disabled={!reason.trim()}
                 onPress={router.back}
               >
                 Deactivate
@@ -257,27 +260,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.borderDash,
   },
-  chipRow: {
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-    marginBottom: 12,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: Radius.pill,
-  },
-  chipOn: { backgroundColor: Colors.mainBlue },
-  chipOff: {
-    backgroundColor: Colors.frost70,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.borderSoft,
-  },
-  chipText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSize.regular16,
-    letterSpacing: LetterSpacing.tight,
+  requiredMark: {
+    color: Colors.red,
   },
   textarea: {
     minHeight: 100,
@@ -297,5 +281,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 22,
+  },
+  centerFill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  notFoundTitle: {
+    fontFamily: Fonts.semibold,
+    fontSize: FontSize.regular18,
+    color: Colors.textMuted,
+    letterSpacing: LetterSpacing.tight,
+  },
+  notFoundBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.control,
+    backgroundColor: Colors.frost75,
+  },
+  notFoundBtnText: {
+    fontFamily: Fonts.semibold,
+    fontSize: FontSize.regular16,
+    color: Colors.blue2,
+    letterSpacing: LetterSpacing.normal,
   },
 });

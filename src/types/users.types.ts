@@ -11,6 +11,14 @@ export type GetAllUsers_Api_Payload_Type = {
   status?: boolean | string;
 };
 
+/**
+ * POST /api/user/signUp — multipart/form-data. The helper converts this to
+ * FormData; `profileImage` follows React Native's file shape (`{ uri, name, type }`)
+ * which RN's FormData accepts directly.
+ *
+ * `ticket` is required by the backend when `roleId` corresponds to the Student
+ * role; the form attaches it conditionally based on the picked role's name.
+ */
 export type AddUser_Api_Payload_Type = {
   name: string;
   email: string;
@@ -18,10 +26,9 @@ export type AddUser_Api_Payload_Type = {
   roleId: number;
   country_code?: string;
   phone_number?: string;
-  city?: string;
-  country?: string;
-  pseudo_name?: string;
-  parentsEmail?: string;
+  gender?: string;
+  ticket?: string;
+  profileImage?: { uri: string; name: string; type: string };
 };
 
 export type AddRelation_Api_Payload_Type = {
@@ -65,9 +72,13 @@ export type User_Object_Type = {
   updatedAt: string; // ISO date string
   deletedAt: string | null;
   isSync: boolean;
+  calendar_integration_enabled: boolean;
   role: {
     id: number;
     name: string;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: null | string;
   };
 };
 
@@ -76,6 +87,11 @@ export type GetAllUsers_Api_Response_Type = {
   totalPages: number;
   currentPage: number;
   totalCount: number;
+};
+
+/** GET /api/user/getUserById — backend wraps the user in a `user` envelope. */
+export type GetUserById_Api_Response_Type = {
+  user: User_Object_Type;
 };
 
 export type AddRelation_Api_Response_Type = {
@@ -111,11 +127,13 @@ export type GetAllUsersByGroup_ApiResponse_Type = {
   parents: UserByGroup_Object;
 };
 
+/** PUT /api/user/update — application/json. Mirrors the swagger schema exactly. */
 export type UpdateUser_Api_Payload_Type = {
   id: number;
   name?: string;
   email?: string;
-  status?: string;
+  /** Boolean per Edit-form spec — Active = true, Inactive = false. */
+  status?: boolean;
   roleId?: number;
   pseudo_name?: string;
   profileImageUrl?: string;
@@ -124,8 +142,9 @@ export type UpdateUser_Api_Payload_Type = {
   country_code?: string;
   phone_number?: string;
   isSync?: boolean;
-  parentsEmail?: string;
-  firebase_token?: string;
+  permanent?: string;
+  message?: string;
+  ticket?: string;
 };
 
 export type UpdateUser_ApiResponse_Type = {
@@ -139,34 +158,6 @@ export type UpdateUser_ApiResponse_Type = {
   pseudo_name?: string;
   phone_number?: string;
   updatedAt: string;
-};
-
-// get user by id=
-export type Get_User_By_Id_ApiResponse_Type = {
-  id: number;
-  name: string;
-  email: string;
-  connectedEmails: string;
-  password: string;
-  status: boolean;
-  is_verified: boolean;
-  isSync: boolean;
-  firebase_token: string;
-  token: string;
-  roleId: number;
-  reset_token?: string | null;
-  city?: string | null;
-  gender?: string | null;
-  country?: string | null;
-  profileImageUrl: string;
-  pseudo_name: string;
-  pseudo_names: string;
-  phone_number: string;
-  country_code: string;
-  reset_token_expiry?: Date | null;
-  deletedAt?: Date | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
 };
 
 export type Add_Delete_Gmail_Api_Response_Type = {
